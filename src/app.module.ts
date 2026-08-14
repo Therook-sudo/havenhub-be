@@ -1,8 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from './config/configuration';
-import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import {
+  User,
+  Property,
+  Enquiry,
+  SavedProperty,
+  Report,
+  AuditLog,
+} from './entities';
 
 @Module({
   imports: [
@@ -10,7 +18,17 @@ import { HealthModule } from './health/health.module';
       isGlobal: true,
       load: [configuration],
     }),
-    PrismaModule,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        url: configService.get<string>('database.url'),
+        entities: [User, Property, Enquiry, SavedProperty, Report, AuditLog],
+        synchronize: configService.get<string>('nodeEnv') === 'development',
+        logging: configService.get<string>('nodeEnv') === 'development',
+      }),
+    }),
     HealthModule,
   ],
 })

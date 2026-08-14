@@ -1,12 +1,12 @@
 # HAVENHUB Backend API
 
-HAVENHUB is a modern Property Rental & Real Estate Marketplace backend service built with **NestJS**, **PostgreSQL**, **Prisma ORM**, and **RESTful API** principles.
+HAVENHUB is a modern Property Rental & Real Estate Marketplace backend service built with **NestJS**, **PostgreSQL**, **TypeORM**, and **RESTful API** principles.
 
 ## Tech Stack
 
 - **Framework**: [NestJS](https://nestjs.com/) (TypeScript)
 - **Database**: PostgreSQL
-- **ORM**: [Prisma](https://www.prisma.io/)
+- **ORM**: [TypeORM](https://typeorm.io/)
 - **API Style**: RESTful API (`/api/v1/...`)
 - **Documentation**: Swagger OpenAPI (`/api/docs`)
 - **Validation & Transformation**: `class-validator`, `class-transformer`
@@ -22,14 +22,12 @@ HAVEN_HUB/
 ├── nest-cli.json             # Nest CLI configuration
 ├── package.json              # Dependencies and scripts
 ├── tsconfig.json             # TypeScript configuration
-├── prisma/
-│   └── schema.prisma         # PostgreSQL models & datasource
 └── src/
     ├── common/               # Exception filters, interceptors, pipes
     ├── config/               # NestJS configuration loader
-    ├── prisma/               # Prisma database service & module
+    ├── entities/             # TypeORM Entities (User, Property, Enquiry, etc.)
     ├── health/               # RESTful health check module
-    ├── app.module.ts         # Root module
+    ├── app.module.ts         # Root module with TypeORM configuration
     └── main.ts               # Bootstrapping & Swagger setup
 ```
 
@@ -52,13 +50,7 @@ npm install
 # 2. Configure environment variables
 cp .env.example .env
 
-# 3. Generate Prisma Client
-npx prisma generate
-
-# 4. Run database migrations (when PostgreSQL is active)
-npx prisma migrate dev --name init
-
-# 5. Start development server
+# 3. Start development server (TypeORM automatically syncs schema in dev mode)
 npm run start:dev
 ```
 
@@ -68,12 +60,12 @@ npm run start:dev
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/health` | System health status & PostgreSQL connection check |
+| `GET` | `/api/v1/health` | System health status & PostgreSQL TypeORM connection check |
 | `GET` | `/api/docs` | Interactive Swagger API documentation |
 
 ---
 
-## Database Models Overview
+## Database Entities Overview
 
 - `User`: Roles (`PROPERTY_SEEKER`, `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`)
 - `Property`: Real estate listing details, pricing, location, status (`PENDING_REVIEW`, `APPROVED`, `RENTED`, etc.)
