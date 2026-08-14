@@ -33,4 +33,9 @@ HAVENHUB_UserResearch_UserStories.docx
 Screenshot*.png
 *.docx
 *.png
+*.pdf
+HavenHub PRD*
+HavenHub_Sprint_Roadmap*
+HavenHub_Backend_Roadmap_Recommendations*
+
 
