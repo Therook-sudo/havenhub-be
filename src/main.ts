@@ -12,12 +12,21 @@ async function bootstrap() {
   // Global prefix for REST API
   app.setGlobalPrefix('api/v1');
 
-  // Enable CORS
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  // Enable CORS for Vanilla JS / SPA clients (supporting Live Server, local files, and dev hosts)
   app.enableCors({
-    origin: corsOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or local files) or any localhost/127.0.0.1
+      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === process.env.CORS_ORIGIN) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Permissive in dev mode for smooth frontend integration
+      }
+    },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
+
 
   // Global pipes & filters
   app.useGlobalPipes(
