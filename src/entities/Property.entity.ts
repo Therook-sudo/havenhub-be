@@ -16,73 +16,73 @@ import { SavedProperty } from './SavedProperty.entity';
 @Entity('properties')
 export class Property {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  title: string;
+  title!: string;
 
   @Column('text')
-  description: string;
+  description!: string;
 
   @Column('decimal', { precision: 12, scale: 2 })
-  price: number;
+  price!: number;
 
   @Column({ default: 'NGN' })
-  currency: string;
+  currency!: string;
 
   @Column()
-  location: string;
+  location!: string;
 
   @Column({ nullable: true })
   address?: string;
 
   @Column()
-  city: string;
+  city!: string;
 
   @Column()
-  state: string;
+  state!: string;
 
   @Column()
-  propertyType: string;
+  propertyType!: string;
 
   @Column('int')
-  bedrooms: number;
+  bedrooms!: number;
 
   @Column('int')
-  bathrooms: number;
+  bathrooms!: number;
 
   @Column('simple-array', { nullable: true })
-  amenities: string[];
+  amenities!: string[];
 
   @Column('simple-array', { nullable: true })
-  images: string[];
+  images!: string[];
 
   @Column({
     type: 'enum',
     enum: ListingStatus,
     default: ListingStatus.PENDING_REVIEW,
   })
-  status: ListingStatus;
+  status!: ListingStatus;
 
   @Column({ nullable: true })
   rejectionReason?: string;
 
   @Column()
-  landlordId: string;
+  landlordId!: string;
 
   @ManyToOne(() => User, (user) => user.listings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'landlordId' })
-  landlord: User;
+  landlord!: User;
 
   @OneToMany(() => Enquiry, (enquiry) => enquiry.property)
-  enquiries: Enquiry[];
+  enquiries!: Enquiry[];
 
   @OneToMany(() => SavedProperty, (saved) => saved.property)
-  savedBy: SavedProperty[];
+  savedBy!: SavedProperty[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
