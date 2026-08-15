@@ -11,6 +11,7 @@ import {
   Report,
   AuditLog,
 } from './entities';
+import { PropertyModule } from './property/property.module';
 
 @Module({
   imports: [
@@ -23,13 +24,14 @@ import {
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('database.url'),
+        url: configService.get<string>('DATABASE_URL'),
         entities: [User, Property, Enquiry, SavedProperty, Report, AuditLog],
         synchronize: configService.get<string>('nodeEnv') === 'development',
         logging: configService.get<string>('nodeEnv') === 'development',
       }),
     }),
     HealthModule,
+    PropertyModule,
   ],
 })
 export class AppModule {}
