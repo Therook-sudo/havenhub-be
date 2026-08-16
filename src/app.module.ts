@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
 import { PropertiesModule } from './properties/properties.module';
+import { PropertyModule } from './property/property.module';
 import {
   User,
   Property,
@@ -24,7 +25,7 @@ import {
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('database.url'),
+        url: configService.get<string>('database.url') || configService.get<string>('DATABASE_URL'),
         entities: [User, Property, Enquiry, SavedProperty, Report, AuditLog],
         synchronize: configService.get<string>('nodeEnv') === 'development',
         logging: configService.get<string>('nodeEnv') === 'development',
@@ -32,7 +33,7 @@ import {
     }),
     HealthModule,
     PropertiesModule,
+    PropertyModule,
   ],
 })
 export class AppModule {}
-
