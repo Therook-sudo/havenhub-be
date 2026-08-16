@@ -43,14 +43,40 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('HAVENHUB REST API')
     .setDescription(
-      'Property Rental & Real Estate Marketplace API documentation. Supports Property Seekers, Landlords, Agents, Property Managers, and Administrators.',
+      'HAVENHUB Property Rental & Real Estate Marketplace Backend API.\n\n' +
+        '**Base URL**: `/api/v1`  \n' +
+        '**Authentication**: Bearer JWT (`Authorization: Bearer <token>`)  \n' +
+        '**Roles**: `PROPERTY_SEEKER`, `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`',
     )
-    .setVersion('1.0')
-    .addBearerAuth()
+    .setVersion('1.0.0')
+    .addTag('Health Check', 'System health status and database connectivity monitoring')
+    .addTag('Auth', 'User registration, login, JWT token management, and profile')
+    .addTag('Properties', 'Public discovery feed, search filtering, and property details')
+    .addTag('Enquiries', 'Renter inquiry submission and messaging threads')
+    .addTag('Admin', 'Administrator moderation queue and audit logs')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter your JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+    },
+    customSiteTitle: 'HAVENHUB API Documentation',
+  });
+
 
   const port = process.env.PORT || 5000;
   await app.listen(port);
