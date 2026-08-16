@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
 import { PropertiesModule } from './properties/properties.module';
 import { PropertyModule } from './property/property.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
 import {
   User,
   Property,
@@ -31,9 +34,21 @@ import {
         logging: configService.get<string>('nodeEnv') === 'development',
       }),
     }),
+    JwtModule.registerAsync({
+      global: true,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET') || 'havenhub_dev_secret_key_2026',
+        signOptions: {
+          expiresIn: config.get<string>('JWT_EXPIRES_IN') || '7d',
+        },
+      }),
+    }),
     HealthModule,
     PropertiesModule,
     PropertyModule,
+    UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

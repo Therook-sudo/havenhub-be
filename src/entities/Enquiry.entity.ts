@@ -14,35 +14,35 @@ import { User } from './User.entity';
 @Entity('enquiries')
 export class Enquiry {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column('text')
-  message: string;
+  message!: string;
 
   @Column({
     type: 'enum',
     enum: EnquiryStatus,
     default: EnquiryStatus.PENDING,
   })
-  status: EnquiryStatus;
+  status!: EnquiryStatus;
 
   @Column()
-  propertyId: string;
+  propertyId!: string;
 
   @ManyToOne(() => Property, (property) => property.enquiries, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'propertyId' })
-  property: Property;
+  property!: Property;
 
   @Column()
-  seekerId: string;
+  seekerId!: string;
 
   @ManyToOne(() => User, (user) => user.enquiriesSent, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'seekerId' })
-  seeker: User;
+  seeker!: User;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
