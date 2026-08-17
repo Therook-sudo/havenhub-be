@@ -40,9 +40,23 @@ export class UsersService {
 
     const saved = await this.UserRepository.save(user);
 
-    const { passwordHash, ...result } = saved;
+    // Sign JWT token upon registration so user can proceed directly to dashboard
+    const payload = {
+      sub: saved.id,
+      email: saved.email,
+      firstName: saved.firstName,
+      lastName: saved.lastName,
+      role: saved.role,
+    };
 
-    return result;
+    const token = await this.jwtService.signAsync(payload);
+
+    const { passwordHash, ...userInfo } = saved;
+
+    return {
+      token,
+      userInfo,
+    };
   }
 
   async login(loginUserDto: LoginUserDto) {
@@ -80,14 +94,14 @@ export class UsersService {
     };
   }
 
-  async getMe(id) {
-    const user = await this.UserRepository.findOneBy({ id })
+  async getMe(id: string) {
+    const user = await this.UserRepository.findOneBy({ id });
     if (!user) {
-      throw new ConflictException('User not found')
+      throw new ConflictException('User not found');
     }
 
-    const { passwordHash, ...userInfo } = user
+    const { passwordHash, ...userInfo } = user;
     
-    return userInfo
+    return userInfo;
   }
 }
