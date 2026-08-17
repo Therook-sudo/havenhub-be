@@ -5,7 +5,6 @@ import { JwtModule } from '@nestjs/jwt';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
 import { PropertiesModule } from './properties/properties.module';
-import { PropertyModule } from './property/property.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
@@ -47,11 +46,9 @@ import {
     }),
     HealthModule,
     PropertiesModule,
-    PropertyModule,
     UsersModule,
     AuthModule,
   ],
   controllers: [AppController],
 })
 export class AppModule {}
-

@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from '../entities/Property.entity';
 import { ListingStatus } from '../entities/enums';
 import { QueryPropertyDto } from './dto/query-property.dto';
+import { CreatePropertyDto } from '../property/dto/create-property.dto';
+import { UpdatePropertyDto } from '../property/dto/update-property.dto';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class PropertiesService {
@@ -41,11 +45,9 @@ export class PropertiesService {
         'landlord.avatarUrl',
       ]);
 
-    // Status filtering: Defaults to APPROVED for public feed unless specified or in DEV_AUTO_APPROVE mode
     if (status) {
       queryBuilder.andWhere('property.status = :status', { status });
     } else {
-      // If DEV_AUTO_APPROVE_LISTINGS is enabled, show all non-rejected properties
       const isDevAutoApprove = process.env.DEV_AUTO_APPROVE_LISTINGS === 'true';
       if (!isDevAutoApprove) {
         queryBuilder.andWhere('property.status = :defaultStatus', {
@@ -54,7 +56,6 @@ export class PropertiesService {
       }
     }
 
-    // Keyword Search across title, description, and location
     if (search) {
       queryBuilder.andWhere(
         '(LOWER(property.title) LIKE LOWER(:search) OR LOWER(property.description) LIKE LOWER(:search) OR LOWER(property.location) LIKE LOWER(:search))',
@@ -62,7 +63,6 @@ export class PropertiesService {
       );
     }
 
-    // Specific filters
     if (city) {
       queryBuilder.andWhere('LOWER(property.city) = LOWER(:city)', { city });
     }
@@ -89,7 +89,6 @@ export class PropertiesService {
       queryBuilder.andWhere('property.bedrooms = :bedrooms', { bedrooms });
     }
 
-    // Pagination
     const skip = (page - 1) * limit;
     queryBuilder.orderBy('property.createdAt', 'DESC').skip(skip).take(limit);
 
@@ -108,7 +107,21 @@ export class PropertiesService {
     };
   }
 
+  async findMyListings(landlordId: string): Promise<Property[]> {
+    if (!landlordId) {
+      throw new BadRequestException('Landlord ID is required');
+    }
+    return this.propertyRepository.find({
+      where: { landlordId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async findOne(id: string) {
+    if (!UUID_REGEX.test(id)) {
+      throw new NotFoundException(`Invalid Property UUID: "${id}"`);
+    }
+
     const property = await this.propertyRepository
       .createQueryBuilder('property')
       .leftJoinAndSelect('property.landlord', 'landlord')
@@ -131,5 +144,54 @@ export class PropertiesService {
     }
 
     return property;
+  }
+
+  async create(createPropertyDto: CreatePropertyDto, landlordId: string): Promise<Property> {
+    const isDevAutoApprove = process.env.DEV_AUTO_APPROVE_LISTINGS === 'true';
+    const status = isDevAutoApprove ? ListingStatus.APPROVED : ListingStatus.PENDING_REVIEW;
+
+    const property = this.propertyRepository.create({
+      ...createPropertyDto,
+      landlordId,
+      status,
+    });
+    return this.propertyRepository.save(property);
+  }
+
+  async update(id: string, updatePropertyDto: UpdatePropertyDto, landlordId: string): Promise<Property> {
+    if (!UUID_REGEX.test(id)) {
+      throw new NotFoundException(`Invalid Property UUID: "${id}"`);
+    }
+
+    const property = await this.propertyRepository.findOne({ where: { id } });
+
+    if (!property) {
+      throw new NotFoundException(`Property with ID "${id}" was not found`);
+    }
+
+    if (property.landlordId !== landlordId) {
+      throw new ForbiddenException('You are not authorized to update this property');
+    }
+
+    Object.assign(property, updatePropertyDto);
+    return this.propertyRepository.save(property);
+  }
+
+  async remove(id: string, landlordId: string): Promise<void> {
+    if (!UUID_REGEX.test(id)) {
+      throw new NotFoundException(`Invalid Property UUID: "${id}"`);
+    }
+
+    const property = await this.propertyRepository.findOne({ where: { id } });
+
+    if (!property) {
+      throw new NotFoundException(`Property with ID "${id}" was not found`);
+    }
+
+    if (property.landlordId !== landlordId) {
+      throw new ForbiddenException('You are not authorized to remove this property');
+    }
+
+    await this.propertyRepository.remove(property);
   }
 }
