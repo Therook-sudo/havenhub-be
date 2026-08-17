@@ -3,22 +3,21 @@ import {
   Get,
   Post,
   Body,
-  Req,
-  UnauthorizedException,
+  UseGuards,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { LoginUserDto } from "./dto/login-user.dto";
-import { Request } from "express";
-import { JwtService } from "@nestjs/jwt";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { User } from "../entities/User.entity";
 
 @ApiTags("Auth & Users")
 @Controller("users")
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private jwtService: JwtService,
   ) {}
   
   @Post('register')
@@ -36,28 +35,12 @@ export class UsersController {
   }
 
   @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   @ApiOperation({ summary: 'Get Current Authenticated User Profile' })
   @ApiResponse({ status: 200, description: 'Returns authenticated user profile' })
   @ApiResponse({ status: 401, description: 'Not authenticated' })
-  async getMe(@Req() req: Request) {
-    const rawHeader = req.headers.authorization || '';
-    let token = rawHeader.trim();
-
-    // Flexible extraction: remove any leading "Bearer " tokens if repeated
-    while (token.toLowerCase().startsWith('bearer ')) {
-      token = token.substring(7).trim();
-    }
-
-    if (!token) {
-      throw new UnauthorizedException('Not authenticated. Bearer token missing.');
-    }
-
-    try {
-      const payload = await this.jwtService.verifyAsync(token);
-      return this.usersService.getMe(payload.sub);
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
+  async getMe(@CurrentUser() user: User) {
+    return user;
   }
 }

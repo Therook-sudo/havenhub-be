@@ -17,10 +17,14 @@ interface JwtPayload {
 
 const flexibleBearerExtractor = (req: Request): string | null => {
   if (!req || !req.headers) return null;
-  const rawHeader = req.headers.authorization || (req.headers as any).Authorization;
+  const rawHeader =
+    req.headers.authorization ||
+    (req.headers as any).Authorization ||
+    (req.headers as any).authorization;
+
   if (!rawHeader) return null;
 
-  let token = rawHeader.trim();
+  let token = String(rawHeader).trim();
   while (token.toLowerCase().startsWith('bearer ')) {
     token = token.substring(7).trim();
   }
@@ -33,7 +37,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     configService: ConfigService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {
-    const secret = configService.get<string>('JWT_SECRET') || 'havenhub_dev_secret_key_2026';
+    const secret =
+      configService.get<string>('jwt.secret') ||
+      configService.get<string>('JWT_SECRET') ||
+      'havenhub_dev_secret_key_2026';
 
     super({
       jwtFromRequest: flexibleBearerExtractor,
@@ -43,6 +50,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    if (!payload || !payload.sub) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
     const user = await this.userRepository.findOneBy({ id: payload.sub });
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
