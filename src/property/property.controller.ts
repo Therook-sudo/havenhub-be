@@ -1,12 +1,27 @@
-import { Controller, Get, Post, Body, Param, Delete, BadRequestException, Headers, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, BadRequestException, Headers, Put, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { PropertyService } from './property.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { Request } from 'express';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { CloudinaryService} from '@/cloudinary/cloudinary.service'; 
+import { ApiBody, ApiConsumes, ApiOperation, ApiResponse } from '@nestjs/swagger'; 
+import { UploadPropertyImagesDto } from './dto/upload-property-images.dto';
+
+
+interface UploadedImage{
+    buffer: Buffer;
+    mimetype: string;
+    originalname: string;
+}
+
 
 @Controller('/properties')
 export class PropertyController {
-  constructor(private readonly propertyService: PropertyService,) {}
+  constructor(
+    private readonly propertyService: PropertyService, 
+    private readonly cloudinaryService: CloudinaryService
+  ) {}
 
   @Post()
   async create(
@@ -101,10 +116,76 @@ export class PropertyController {
     return this.propertyService.findMyListings(landlordId);
   }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.propertyService.findOne(+id);
-  // }
+  // Post Implementation for uploading property images
+  @Post('upload-images')
+  @ApiOperation({
+    summary: 'Upload Property Images',
+    description: 'Upload between 3 and 10 imgs for a property.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          minItems: 3,
+          maxItems: 10,
+        },
+      },
+      required: ['images'],  
+    }
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Images uploaded successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'At least 3 images are required or an invalid file was provided',
+  })
+  @UseInterceptors(
+    FilesInterceptor('images', 10, {
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+      fileFilter: (req, file, callback) => {
+        if(!file.mimetype.startsWith('image/')) {
+          return callback(
+            new BadRequestException(
+              'Only image files are allowed',
+            ),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadImages(
+    @UploadedFiles() files: UploadedImage[],
+    @Body() uploadPropertyImagesDto: UploadPropertyImagesDto,
+  ) {
+      const uploadedUrls = files?.length
+        ? await this.cloudinaryService.uploadImages(files.map((file) => file.buffer))
+        : uploadPropertyImagesDto.fallbackUrls || [];
 
-
+      const urls = [
+        ...uploadedUrls,
+        ...(uploadPropertyImagesDto.fallbackUrls ?? []),
+      ];
+      if (urls.length < 3) {
+        throw new BadRequestException(
+          'At least 3 images are required for a property listing',
+        );
+      }
+      return {
+        message: 'Images uploaded successfully',
+        images: urls,
+      };
+    }
 }
