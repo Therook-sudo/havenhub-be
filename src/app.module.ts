@@ -16,6 +16,8 @@ import {
   Report,
   AuditLog,
 } from './entities';
+import { CloudinaryService } from './cloudinary/cloudinary.service';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -48,7 +50,9 @@ import {
     PropertiesModule,
     UsersModule,
     AuthModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
+  providers: [CloudinaryService],
 })
 export class AppModule {}
