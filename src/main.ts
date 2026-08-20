@@ -12,21 +12,15 @@ async function bootstrap() {
   // Global prefix for REST API
   app.setGlobalPrefix('api/v1');
 
-  // Enable CORS for Vanilla JS / SPA clients (supporting Live Server, local files, and dev hosts)
+  // Enable CORS for Vanilla JS / Mobile / SPA clients
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or local files) or any localhost/127.0.0.1
-      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === process.env.CORS_ORIGIN) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Permissive in dev mode for smooth frontend integration
-      }
+      callback(null, true); // Permissive CORS for staging API access
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-user-id'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
-
 
   // Global pipes & filters
   app.useGlobalPipes(
@@ -65,7 +59,6 @@ async function bootstrap() {
       },
       'JWT-auth',
     )
-
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -78,12 +71,12 @@ async function bootstrap() {
     customSiteTitle: 'HAVENHUB API Documentation',
   });
 
-
   const port = process.env.PORT || 5000;
-  await app.listen(port);
+  // Bind explicitly to 0.0.0.0 for cloud container proxies (Render / Railway / Docker)
+  await app.listen(port, '0.0.0.0');
 
-  logger.log(`HAVENHUB Backend running on: http://localhost:${port}/api/v1`);
-  logger.log(`Swagger API Docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`HAVENHUB Backend running on: http://0.0.0.0:${port}/api/v1`);
+  logger.log(`Swagger API Docs available at: http://0.0.0.0:${port}/api/docs`);
 }
 
 bootstrap();

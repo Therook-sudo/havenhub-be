@@ -28,13 +28,19 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('database.url') || configService.get<string>('DATABASE_URL'),
-        entities: [User, Property, Enquiry, SavedProperty, Report, AuditLog],
-        synchronize: configService.get<string>('nodeEnv') === 'development',
-        logging: configService.get<string>('nodeEnv') === 'development',
-      }),
+      useFactory: (configService: ConfigService) => {
+        const dbUrl = configService.get<string>('database.url') || configService.get<string>('DATABASE_URL') || '';
+        const isCloudDb = dbUrl.includes('render.com') || dbUrl.includes('railway') || dbUrl.includes('sslmode=require');
+        
+        return {
+          type: 'postgres',
+          url: dbUrl,
+          entities: [User, Property, Enquiry, SavedProperty, Report, AuditLog],
+          synchronize: configService.get<string>('nodeEnv') === 'development' || process.env.NODE_ENV === 'development',
+          logging: configService.get<string>('nodeEnv') === 'development',
+          ssl: isCloudDb ? { rejectUnauthorized: false } : false,
+        };
+      },
     }),
     JwtModule.registerAsync({
       global: true,
