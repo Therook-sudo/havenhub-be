@@ -64,8 +64,8 @@ export class Property {
   })
   status!: ListingStatus;
 
-  @Column({ nullable: true })
-  rejectionReason?: string;
+  @Column({ type: 'varchar', nullable: true })
+  rejectionReason?: string | null;
 
   @Column()
   landlordId!: string;

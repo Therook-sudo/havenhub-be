@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { Property } from '../entities/Property.entity';
 import { ListingStatus } from '../entities/enums';
+import {
+  isDevAutoApproveEnabled,
+  resolveNewListingStatus,
+} from '../config/feature-flags';
 import { QueryPropertyDto } from './dto/query-property.dto';
+import { UpdatePropertyStatusDto } from './dto/update-property-status.dto';
 import { CreatePropertyDto } from '../property/dto/create-property.dto';
 import { UpdatePropertyDto } from '../property/dto/update-property.dto';
 
@@ -14,6 +20,7 @@ export class PropertiesService {
   constructor(
     @InjectRepository(Property)
     private readonly propertyRepository: Repository<Property>,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(queryDto: QueryPropertyDto) {
@@ -48,8 +55,7 @@ export class PropertiesService {
     if (status) {
       queryBuilder.andWhere('property.status = :status', { status });
     } else {
-      const isDevAutoApprove = process.env.DEV_AUTO_APPROVE_LISTINGS === 'true';
-      if (!isDevAutoApprove) {
+      if (!isDevAutoApproveEnabled(this.configService)) {
         queryBuilder.andWhere('property.status = :defaultStatus', {
           defaultStatus: ListingStatus.APPROVED,
         });
@@ -147,8 +153,8 @@ export class PropertiesService {
   }
 
   async create(createPropertyDto: CreatePropertyDto, landlordId: string): Promise<Property> {
-    const isDevAutoApprove = process.env.DEV_AUTO_APPROVE_LISTINGS === 'true';
-    const status = isDevAutoApprove ? ListingStatus.APPROVED : ListingStatus.PENDING_REVIEW;
+    // DEV_AUTO_APPROVE_LISTINGS=true -> APPROVED, otherwise PENDING_REVIEW.
+    const status = resolveNewListingStatus(this.configService);
 
     const property = this.propertyRepository.create({
       ...createPropertyDto,
@@ -174,6 +180,34 @@ export class PropertiesService {
     }
 
     Object.assign(property, updatePropertyDto);
+    return this.propertyRepository.save(property);
+  }
+
+  /**
+   * Moderation transition for a listing (admin only at the controller layer).
+   * `rejectionReason` is persisted only for REJECTED and cleared otherwise,
+   * so an approved listing never carries a stale rejection message.
+   */
+  async updateStatus(
+    id: string,
+    updateStatusDto: UpdatePropertyStatusDto,
+  ): Promise<Property> {
+    if (!UUID_REGEX.test(id)) {
+      throw new NotFoundException(`Invalid Property UUID: "${id}"`);
+    }
+
+    const property = await this.propertyRepository.findOne({ where: { id } });
+
+    if (!property) {
+      throw new NotFoundException(`Property with ID "${id}" was not found`);
+    }
+
+    property.status = updateStatusDto.status;
+    property.rejectionReason =
+      updateStatusDto.status === ListingStatus.REJECTED
+        ? updateStatusDto.rejectionReason ?? null
+        : null;
+
     return this.propertyRepository.save(property);
   }
 
