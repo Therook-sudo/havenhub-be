@@ -18,6 +18,7 @@ import {
 } from './entities';
 import { CloudinaryService } from './cloudinary/cloudinary.service';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { EnquiriesModule } from './enquiries/enquiries.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     PropertiesModule,
     UsersModule,
     AuthModule,
+    EnquiriesModule,
     CloudinaryModule,
   ],
   controllers: [AppController],
