@@ -9,4 +9,10 @@ export default () => ({
     secret: process.env.JWT_SECRET || 'havenhub_dev_secret_key_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
+  featureFlags: {
+    // DEV_AUTO_APPROVE_LISTINGS=true bypasses the moderation queue so newly
+    // created listings go straight to APPROVED (staging / local development).
+    devAutoApproveListings:
+      (process.env.DEV_AUTO_APPROVE_LISTINGS || '').trim().toLowerCase() === 'true',
+  },
 });

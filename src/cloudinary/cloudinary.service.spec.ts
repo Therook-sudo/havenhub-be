@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { CloudinaryService } from './cloudinary.service';
 
 describe('CloudinaryService', () => {
@@ -6,7 +7,10 @@ describe('CloudinaryService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CloudinaryService],
+      providers: [
+        CloudinaryService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+      ],
     }).compile();
 
     service = module.get<CloudinaryService>(CloudinaryService);
