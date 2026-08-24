@@ -17,6 +17,7 @@ export class AppController {
         health: '/api/v1/health',
         properties: '/api/v1/properties',
         auth: '/api/v1/auth',
+        enquires: '/api/v1/enquiries'
       },
       timestamp: new Date().toISOString(),
     };
