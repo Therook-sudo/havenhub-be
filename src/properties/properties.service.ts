@@ -8,7 +8,7 @@ import {
   isDevAutoApproveEnabled,
   resolveNewListingStatus,
 } from '../config/feature-flags';
-import { QueryPropertyDto } from './dto/query-property.dto';
+import { QueryPropertyDto, PropertySortBy } from './dto/query-property.dto';
 import { UpdatePropertyStatusDto } from './dto/update-property-status.dto';
 import { CreatePropertyDto } from '../property/dto/create-property.dto';
 import { UpdatePropertyDto } from '../property/dto/update-property.dto';
@@ -24,16 +24,28 @@ export class PropertiesService {
   ) {}
 
   async findAll(queryDto: QueryPropertyDto) {
+    return this.executePropertyQuery(queryDto);
+  }
+
+  async search(queryDto: QueryPropertyDto) {
+    return this.executePropertyQuery(queryDto);
+  }
+
+  private async executePropertyQuery(queryDto: QueryPropertyDto) {
     const {
       page = 1,
       limit = 10,
       search,
       city,
       state,
+      location,
       propertyType,
       minPrice,
       maxPrice,
       bedrooms,
+      bathrooms,
+      amenity,
+      sortBy = PropertySortBy.NEWEST,
       status,
     } = queryDto;
 
@@ -52,6 +64,7 @@ export class PropertiesService {
         'landlord.avatarUrl',
       ]);
 
+    // 1. Status Filtering
     if (status) {
       queryBuilder.andWhere('property.status = :status', { status });
     } else {
@@ -62,53 +75,98 @@ export class PropertiesService {
       }
     }
 
-    if (search) {
+    // 2. Multi-field Keyword Search
+    if (search && search.trim().length > 0) {
+      const searchTerms = `%${search.trim().toLowerCase()}%`;
       queryBuilder.andWhere(
-        '(LOWER(property.title) LIKE LOWER(:search) OR LOWER(property.description) LIKE LOWER(:search) OR LOWER(property.location) LIKE LOWER(:search))',
-        { search: `%${search}%` },
+        '(LOWER(property.title) LIKE :searchTerms OR LOWER(property.description) LIKE :searchTerms OR LOWER(property.location) LIKE :searchTerms OR LOWER(property.city) LIKE :searchTerms OR LOWER(COALESCE(property.address, \'\')) LIKE :searchTerms)',
+        { searchTerms },
       );
     }
 
-    if (city) {
-      queryBuilder.andWhere('LOWER(property.city) = LOWER(:city)', { city });
+    // 3. Location Filters
+    if (city && city.trim().length > 0) {
+      queryBuilder.andWhere('LOWER(property.city) = LOWER(:city)', { city: city.trim() });
     }
 
-    if (state) {
-      queryBuilder.andWhere('LOWER(property.state) = LOWER(:state)', { state });
+    if (state && state.trim().length > 0) {
+      queryBuilder.andWhere('LOWER(property.state) = LOWER(:state)', { state: state.trim() });
     }
 
-    if (propertyType) {
-      queryBuilder.andWhere('LOWER(property.propertyType) = LOWER(:propertyType)', {
-        propertyType,
+    if (location && location.trim().length > 0) {
+      queryBuilder.andWhere('LOWER(property.location) LIKE LOWER(:location)', {
+        location: `%${location.trim()}%`,
       });
     }
 
-    if (minPrice !== undefined) {
+    // 4. Property Type Filter
+    if (propertyType && propertyType.trim().length > 0) {
+      queryBuilder.andWhere('LOWER(property.propertyType) = LOWER(:propertyType)', {
+        propertyType: propertyType.trim(),
+      });
+    }
+
+    // 5. Price Range Filter
+    if (minPrice !== undefined && minPrice !== null) {
       queryBuilder.andWhere('property.price >= :minPrice', { minPrice });
     }
 
-    if (maxPrice !== undefined) {
+    if (maxPrice !== undefined && maxPrice !== null) {
       queryBuilder.andWhere('property.price <= :maxPrice', { maxPrice });
     }
 
-    if (bedrooms !== undefined) {
-      queryBuilder.andWhere('property.bedrooms = :bedrooms', { bedrooms });
+    // 6. Bedroom & Bathroom Filters
+    if (bedrooms !== undefined && bedrooms !== null) {
+      queryBuilder.andWhere('property.bedrooms >= :bedrooms', { bedrooms });
     }
 
-    const skip = (page - 1) * limit;
-    queryBuilder.orderBy('property.createdAt', 'DESC').skip(skip).take(limit);
+    if (bathrooms !== undefined && bathrooms !== null) {
+      queryBuilder.andWhere('property.bathrooms >= :bathrooms', { bathrooms });
+    }
+
+    // 7. Amenity Filter
+    if (amenity && amenity.trim().length > 0) {
+      queryBuilder.andWhere('LOWER(COALESCE(property.amenities, \'\')) LIKE LOWER(:amenity)', {
+        amenity: `%${amenity.trim()}%`,
+      });
+    }
+
+    // 8. Sorting
+    switch (sortBy) {
+      case PropertySortBy.PRICE_ASC:
+        queryBuilder.orderBy('property.price', 'ASC');
+        break;
+      case PropertySortBy.PRICE_DESC:
+        queryBuilder.orderBy('property.price', 'DESC');
+        break;
+      case PropertySortBy.OLDEST:
+        queryBuilder.orderBy('property.createdAt', 'ASC');
+        break;
+      case PropertySortBy.NEWEST:
+      default:
+        queryBuilder.orderBy('property.createdAt', 'DESC');
+        break;
+    }
+
+    // 9. Pagination
+    const validLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const validPage = Math.max(Number(page) || 1, 1);
+    const skip = (validPage - 1) * validLimit;
+
+    queryBuilder.skip(skip).take(validLimit);
 
     const [items, total] = await queryBuilder.getManyAndCount();
+    const totalPages = Math.ceil(total / validLimit) || 1;
 
     return {
       items,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page < Math.ceil(total / limit),
-        hasPreviousPage: page > 1,
+        page: validPage,
+        limit: validLimit,
+        totalPages,
+        hasNextPage: validPage < totalPages,
+        hasPreviousPage: validPage > 1,
       },
     };
   }

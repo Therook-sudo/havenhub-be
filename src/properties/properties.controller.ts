@@ -70,11 +70,22 @@ export class PropertiesController {
   @Get()
   @ApiOperation({
     summary: 'Public Property Discovery Feed',
-    description: 'Search and filter verified property listings with pagination.',
+    description: 'Fetch verified property listings with pagination and sorting.',
   })
   @ApiResponse({ status: 200, description: 'Paginated list of property listings' })
   async findAll(@Query() queryDto: QueryPropertyDto) {
     return this.propertiesService.findAll(queryDto);
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: 'Dynamic Search & Multi-Filter Engine',
+    description:
+      'Search properties with multi-parameter filtering: keyword search, location/city/state, price ranges, bedrooms, bathrooms, amenities, and sorting.',
+  })
+  @ApiResponse({ status: 200, description: 'Search results matching criteria with pagination metadata' })
+  async search(@Query() queryDto: QueryPropertyDto) {
+    return this.propertiesService.search(queryDto);
   }
 
   @Get('my-listings')

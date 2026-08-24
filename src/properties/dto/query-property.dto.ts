@@ -7,9 +7,17 @@ import {
   Min,
   Max,
   IsEnum,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ListingStatus } from '../../entities/enums';
+
+export enum PropertySortBy {
+  PRICE_ASC = 'price_asc',
+  PRICE_DESC = 'price_desc',
+  NEWEST = 'newest',
+  OLDEST = 'oldest',
+}
 
 export class QueryPropertyDto {
   @ApiPropertyOptional({ default: 1, description: 'Page number for pagination' })
@@ -27,7 +35,7 @@ export class QueryPropertyDto {
   @Max(100)
   limit?: number = 10;
 
-  @ApiPropertyOptional({ description: 'Search keyword matching title, description, or location' })
+  @ApiPropertyOptional({ description: 'Search keyword matching title, description, address, or location' })
   @IsOptional()
   @IsString()
   search?: string;
@@ -37,12 +45,17 @@ export class QueryPropertyDto {
   @IsString()
   city?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by state (e.g. Lagos State, FCT)' })
+  @ApiPropertyOptional({ description: 'Filter by state (e.g. Lagos State, FCT, Abuja)' })
   @IsOptional()
   @IsString()
   state?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by property type (e.g. Apartment, House, Duplex, Studio)' })
+  @ApiPropertyOptional({ description: 'Filter by specific neighborhood or location' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by property type (e.g. Apartment, House, Duplex, Studio, Villa)' })
   @IsOptional()
   @IsString()
   propertyType?: string;
@@ -61,14 +74,35 @@ export class QueryPropertyDto {
   @Min(0)
   maxPrice?: number;
 
-  @ApiPropertyOptional({ description: 'Exact number of bedrooms' })
+  @ApiPropertyOptional({ description: 'Exact or minimum number of bedrooms' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   bedrooms?: number;
 
-  @ApiPropertyOptional({ enum: ListingStatus, description: 'Filter by status (Admin / Landlord use)' })
+  @ApiPropertyOptional({ description: 'Exact or minimum number of bathrooms' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  bathrooms?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by amenity keyword (e.g. Swimming Pool, 24/7 Power, Security)' })
+  @IsOptional()
+  @IsString()
+  amenity?: string;
+
+  @ApiPropertyOptional({
+    enum: PropertySortBy,
+    default: PropertySortBy.NEWEST,
+    description: 'Sort ordering: price_asc, price_desc, newest, oldest',
+  })
+  @IsOptional()
+  @IsEnum(PropertySortBy)
+  sortBy?: PropertySortBy = PropertySortBy.NEWEST;
+
+  @ApiPropertyOptional({ enum: ListingStatus, description: 'Filter by listing status (Admin / Moderation use)' })
   @IsOptional()
   @IsEnum(ListingStatus)
   status?: ListingStatus;

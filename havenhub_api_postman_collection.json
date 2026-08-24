@@ -64,22 +64,22 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"landlord@havenhub.com\",\n  \"password\": \"Password123!\",\n  \"firstName\": \"Emeka\",\n  \"lastName\": \"Okonkwo\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"role\": \"LANDLORD\"\n}"
+              "raw": "{\n  \"email\": \"testuser@havenhub.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"Emeka\",\n  \"lastName\": \"Okonkwo\",\n  \"role\": \"PROPERTY_SEEKER\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/auth/register",
+              "raw": "{{baseUrl}}/users/register",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
+                "users",
                 "register"
               ]
             }
           }
         },
         {
-          "name": "Login User",
+          "name": "User Login",
           "request": {
             "method": "POST",
             "header": [
@@ -90,15 +90,15 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"landlord@havenhub.com\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"testuser@havenhub.com\",\n  \"password\": \"SecurePass123!\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/auth/login",
+              "raw": "{{baseUrl}}/users/login",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
+                "users",
                 "login"
               ]
             }
@@ -115,12 +115,12 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/users/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
+                "users",
                 "me"
               ]
             }
@@ -156,6 +156,65 @@
                 {
                   "key": "city",
                   "value": "Lagos"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Dynamic Search & Filter Engine (US-01)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/properties/search?search=Lekki&city=Lagos&propertyType=Apartment&minPrice=1000000&maxPrice=5000000&bedrooms=3&bathrooms=2&sortBy=price_asc&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Lekki"
+                },
+                {
+                  "key": "city",
+                  "value": "Lagos"
+                },
+                {
+                  "key": "propertyType",
+                  "value": "Apartment"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "1000000"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "5000000"
+                },
+                {
+                  "key": "bedrooms",
+                  "value": "3"
+                },
+                {
+                  "key": "bathrooms",
+                  "value": "2"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "price_asc"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
                 }
               ]
             }
@@ -307,6 +366,62 @@
               ]
             },
             "description": "Requires an ADMIN Bearer JWT. Sends the listing back to the moderation queue."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Direct Messaging & Enquiries (US-05)",
+      "item": [
+        {
+          "name": "Send Property Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"propertyId\": \"{{propertyId}}\",\n  \"message\": \"Hello, is this property still available for inspection this weekend?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/enquiries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enquiries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Inbox Threads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enquiries/threads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enquiries",
+                "threads"
+              ]
+            }
           }
         }
       ]

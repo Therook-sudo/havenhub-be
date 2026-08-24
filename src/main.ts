@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { Request, Response } from 'express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -71,12 +72,20 @@ async function bootstrap() {
     customSiteTitle: 'HAVENHUB API Documentation',
   });
 
+  // Explicit JSON endpoint for Flutter code generators (swagger_parser / openapi_generator)
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/api/docs-json', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(document);
+  });
+
   const port = process.env.PORT || 5000;
   // Bind explicitly to 0.0.0.0 for cloud container proxies (Render / Railway / Docker)
   await app.listen(port, '0.0.0.0');
 
   logger.log(`HAVENHUB Backend running on: http://0.0.0.0:${port}/api/v1`);
   logger.log(`Swagger API Docs available at: http://0.0.0.0:${port}/api/docs`);
+  logger.log(`Flutter OpenAPI Spec JSON available at: http://0.0.0.0:${port}/api/docs-json`);
 }
 
 bootstrap();
