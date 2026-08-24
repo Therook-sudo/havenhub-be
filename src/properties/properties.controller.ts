@@ -12,6 +12,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -42,7 +43,7 @@ export class PropertiesController {
     private readonly jwtService: JwtService,
   ) {}
 
-  private extractUser(req: Request, headerLandlordId?: string): string {
+  private extractUser(req: Request, headerLandlordId?: string, requireLandlord = false): string {
     // 1. Check Bearer token in Authorization header
     const rawAuth = req.headers.authorization || '';
     let token = rawAuth.trim();
@@ -53,8 +54,16 @@ export class PropertiesController {
     if (token) {
       try {
         const payload = this.jwtService.verify(token);
-        if (payload && payload.sub) return payload.sub;
-      } catch {
+        if (payload && payload.sub) {
+          if (requireLandlord && payload.role === Role.PROPERTY_SEEKER) {
+            throw new ForbiddenException(
+              'Tenants / Property Seekers are not permitted to manage property listings. Please register as a Landlord, Real Estate Agent, or Property Manager.',
+            );
+          }
+          return payload.sub;
+        }
+      } catch (err) {
+        if (err instanceof ForbiddenException) throw err;
         // Fallback to x-user-id header if JWT verification fails or is expired in testing
       }
     }
@@ -91,34 +100,37 @@ export class PropertiesController {
   @Get('my-listings')
   @ApiOperation({
     summary: 'Get Landlord Listings',
-    description: 'Fetch property listings belonging to the authenticated Landlord.',
+    description: 'Fetch property listings belonging to the authenticated Landlord or Agent.',
   })
   @ApiBearerAuth('JWT-auth')
   @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID (Testing Header fallback)' })
   @ApiResponse({ status: 200, description: 'List of landlord properties' })
   @ApiResponse({ status: 400, description: 'Missing user identification' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Tenants/Seekers cannot access landlord listings' })
   async findMyListings(
     @Req() req: Request,
     @Headers('x-user-id') headerLandlordId?: string,
   ) {
-    const landlordId = this.extractUser(req, headerLandlordId);
+    const landlordId = this.extractUser(req, headerLandlordId, true);
     return this.propertiesService.findMyListings(landlordId);
   }
 
   @Post()
   @ApiOperation({
     summary: 'Create New Property Listing',
-    description: 'Create a new property listing as a Landlord or Agent.',
+    description:
+      'Create a new property listing. **Authorized Roles**: `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`. Tenants (`PROPERTY_SEEKER`) are not permitted.',
   })
   @ApiBearerAuth('JWT-auth')
   @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID (Testing Header fallback)' })
   @ApiResponse({ status: 201, description: 'Property created successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Tenants cannot create listings' })
   async create(
     @Body() createPropertyDto: CreatePropertyDto,
     @Req() req: Request,
     @Headers('x-user-id') headerLandlordId?: string,
   ) {
-    const landlordId = this.extractUser(req, headerLandlordId);
+    const landlordId = this.extractUser(req, headerLandlordId, true);
     return this.propertiesService.create(createPropertyDto, landlordId);
   }
 
@@ -131,13 +143,14 @@ export class PropertiesController {
   @ApiBearerAuth('JWT-auth')
   @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID' })
   @ApiResponse({ status: 200, description: 'Property updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Unauthorized user' })
   async update(
     @Param('id') id: string,
     @Body() updatePropertyDto: UpdatePropertyDto,
     @Req() req: Request,
     @Headers('x-user-id') headerLandlordId?: string,
   ) {
-    const landlordId = this.extractUser(req, headerLandlordId);
+    const landlordId = this.extractUser(req, headerLandlordId, true);
     return this.propertiesService.update(id, updatePropertyDto, landlordId);
   }
 
@@ -200,12 +213,13 @@ export class PropertiesController {
   @ApiBearerAuth('JWT-auth')
   @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID' })
   @ApiResponse({ status: 200, description: 'Property deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Unauthorized user' })
   async remove(
     @Param('id') id: string,
     @Req() req: Request,
     @Headers('x-user-id') headerLandlordId?: string,
   ) {
-    const landlordId = this.extractUser(req, headerLandlordId);
+    const landlordId = this.extractUser(req, headerLandlordId, true);
     await this.propertiesService.remove(id, landlordId);
     return { message: 'Property deleted successfully' };
   }

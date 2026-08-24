@@ -13,7 +13,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../entities/User.entity";
 
-@ApiTags("Auth & Users")
+@ApiTags("Auth")
 @Controller("users")
 export class UsersController {
   constructor(
