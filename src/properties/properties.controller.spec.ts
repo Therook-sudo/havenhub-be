@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
+import { QueryPropertyDto, PropertySortBy } from './dto/query-property.dto';
 import {
   MODERATION_STATUSES,
   UpdatePropertyStatusDto,
@@ -18,7 +19,7 @@ const PROPERTY_ID = '3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa';
 
 describe('PropertiesController', () => {
   let controller: PropertiesController;
-  let service: jest.Mocked<Pick<PropertiesService, 'updateStatus'>>;
+  let service: jest.Mocked<PropertiesService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,7 +28,8 @@ describe('PropertiesController', () => {
         {
           provide: PropertiesService,
           useValue: {
-            findAll: jest.fn(),
+            findAll: jest.fn().mockResolvedValue({ items: [], meta: {} }),
+            search: jest.fn().mockResolvedValue({ items: [], meta: {} }),
             findOne: jest.fn(),
             findMyListings: jest.fn(),
             create: jest.fn(),
@@ -43,11 +45,36 @@ describe('PropertiesController', () => {
     }).compile();
 
     controller = module.get<PropertiesController>(PropertiesController);
-    service = module.get(PropertiesService);
+    service = module.get(PropertiesService) as any;
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  describe('GET /properties/search', () => {
+    it('delegates query DTO to PropertiesService.search', async () => {
+      const query: QueryPropertyDto = {
+        search: 'Lekki',
+        city: 'Lagos',
+        minPrice: 100000,
+        maxPrice: 500000,
+        sortBy: PropertySortBy.PRICE_ASC,
+        page: 1,
+        limit: 10,
+      };
+
+      await controller.search(query);
+      expect(service.search).toHaveBeenCalledWith(query);
+    });
+  });
+
+  describe('GET /properties', () => {
+    it('delegates query DTO to PropertiesService.findAll', async () => {
+      const query: QueryPropertyDto = { page: 1, limit: 10 };
+      await controller.findAll(query);
+      expect(service.findAll).toHaveBeenCalledWith(query);
+    });
   });
 
   describe('PATCH /properties/:id/status', () => {
