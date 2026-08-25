@@ -19,7 +19,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiHeader,
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
@@ -73,7 +72,7 @@ export class PropertiesController {
       return headerLandlordId.trim();
     }
 
-    throw new BadRequestException('Authentication required. Provide a Bearer JWT token or x-user-id header.');
+    throw new BadRequestException('Authentication required. Provide a Bearer JWT token in the Authorization header.');
   }
 
   @Get()
@@ -103,7 +102,6 @@ export class PropertiesController {
     description: 'Fetch property listings belonging to the authenticated Landlord or Agent.',
   })
   @ApiBearerAuth('JWT-auth')
-  @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID (Testing Header fallback)' })
   @ApiResponse({ status: 200, description: 'List of landlord properties' })
   @ApiResponse({ status: 400, description: 'Missing user identification' })
   @ApiResponse({ status: 403, description: 'Forbidden - Tenants/Seekers cannot access landlord listings' })
@@ -122,7 +120,6 @@ export class PropertiesController {
       'Create a new property listing. **Authorized Roles**: `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`. Tenants (`PROPERTY_SEEKER`) are not permitted.',
   })
   @ApiBearerAuth('JWT-auth')
-  @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID (Testing Header fallback)' })
   @ApiResponse({ status: 201, description: 'Property created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden - Tenants cannot create listings' })
   async create(
@@ -141,7 +138,6 @@ export class PropertiesController {
   })
   @ApiParam({ name: 'id', description: 'Unique Property UUID' })
   @ApiBearerAuth('JWT-auth')
-  @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID' })
   @ApiResponse({ status: 200, description: 'Property updated successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden - Unauthorized user' })
   async update(
@@ -211,7 +207,6 @@ export class PropertiesController {
   })
   @ApiParam({ name: 'id', description: 'Unique Property UUID' })
   @ApiBearerAuth('JWT-auth')
-  @ApiHeader({ name: 'x-user-id', required: false, description: 'Landlord User UUID' })
   @ApiResponse({ status: 200, description: 'Property deleted successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden - Unauthorized user' })
   async remove(

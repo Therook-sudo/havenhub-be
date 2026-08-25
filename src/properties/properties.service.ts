@@ -175,6 +175,9 @@ export class PropertiesService {
     if (!landlordId) {
       throw new BadRequestException('Landlord ID is required');
     }
+    if (!UUID_REGEX.test(landlordId)) {
+      throw new BadRequestException(`Invalid Landlord ID format: "${landlordId}". Must be a valid UUID.`);
+    }
     return this.propertyRepository.find({
       where: { landlordId },
       order: { createdAt: 'DESC' },
