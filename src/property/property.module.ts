@@ -5,9 +5,12 @@ import { PropertyService } from './property.service';
 import { PropertyController } from './property.controller';
 import { CloudinaryModule } from '@/cloudinary/cloudinary.module';
 
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Property]),
+    TypeOrmModule.forFeature([
+      Property, 
+    ]),
     CloudinaryModule,
   ],
   controllers: [PropertyController],
