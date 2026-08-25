@@ -19,6 +19,7 @@ import {
 import { CloudinaryService } from './cloudinary/cloudinary.service';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
+import { SavedPropertyModule } from './saved-property/saved-property.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     AuthModule,
     EnquiriesModule,
     CloudinaryModule,
+    SavedPropertyModule,
   ],
   controllers: [AppController],
   providers: [CloudinaryService],

@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
@@ -7,11 +7,13 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { resolveNewListingStatus } from '@/config/feature-flags';
 
+
 @Injectable()
 export class PropertyService {
   constructor(
     @InjectRepository(Property)
     private readonly propertyRepository: Repository<Property>,
+
     private readonly configService: ConfigService,
   ) {}
 
@@ -77,10 +79,5 @@ export class PropertyService {
       },
     });
   }
-
-  // findOne(id: string) {
-  //   return `This action returns a #${id} property`;
-  // }
-
 
 }

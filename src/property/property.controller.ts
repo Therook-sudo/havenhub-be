@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Delete, BadRequestException, Headers, Put, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards,  BadRequestException, Put, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { PropertyService } from './property.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
-import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CloudinaryService} from '@/cloudinary/cloudinary.service'; 
 import { ApiBody, ApiConsumes, ApiOperation, ApiResponse } from '@nestjs/swagger'; 
@@ -17,6 +19,7 @@ interface UploadedImage{
 
 
 @Controller('/properties')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class PropertyController {
   constructor(
     private readonly propertyService: PropertyService, 
@@ -26,45 +29,21 @@ export class PropertyController {
   @Post()
   async create(
     @Body() createPropertyDto: CreatePropertyDto,
-    @Headers('x-user-id') landlordId: string,
-
-    // Once user authentication is created, we can use the @Request() decorator to access the authenticated user's ID from the request object. For now, we are using the x-user-id header to simulate this behavior.
-    // @Request() req: Request,
-
+    @CurrentUser('id') landlordId: string,
   ) {
-    // const landlordId = req.user['id'];
-
-    // return this.propertyService.create(
-    //   createPropertyDto, 
-    //   landlordId,
-    // );
-
-    if (!landlordId) {
-      throw new BadRequestException('Missing x-user-id header');
-    }
     return this.propertyService.create(
-      createPropertyDto, landlordId,
+      createPropertyDto, 
+      landlordId,
     );
+
   }
 
   @Put(':id')
   async update(
     @Param('id') id: string, 
     @Body() updatePropertyDto: UpdatePropertyDto,
-    @Headers('x-user-id') landlordId: string,
-
-    // @Request() req: Request,
+    @CurrentUser('id') landlordId: string,
   ) {
-    // const landlordId = req.user['id'];
-    // return this.propertyService.update(
-    //   +id,
-    //   updatePropertyDto, 
-    //   landlordId
-    // );
-
-    if (!landlordId) {
-      throw new BadRequestException('Missing x-user-id header');
-    }
     return this.propertyService.update(
       id,
       updatePropertyDto, 
@@ -75,23 +54,9 @@ export class PropertyController {
   @Delete(':id')
   async remove(
     @Param('id') id: string,
-    @Headers('x-user-id') landlordId: string,
-    // @Request() req: Request,
+    @CurrentUser('id') landlordId: string,
   ) {
-     // const landlordId = req.user['id'];
-    // await this.propertyService.remove(
-    //   +id,
-    //   landlordId,
-    // );
-
-    // return {
-    //   message: 'Property deleted successfully',
-    // };
-
-    if (!landlordId) {
-      throw new BadRequestException('Missing x-user-id header');
-    }
-    this.propertyService.remove(
+    await this.propertyService.remove(
       id,
       landlordId,
     );
@@ -103,17 +68,11 @@ export class PropertyController {
 
   @Get('my-listings')
   async findMyListings(
-    @Headers('x-user-id') landlordId: string,
-    // @Request() req: Request,
+    @CurrentUser('id') landlordId: string,
   ) {
-    // const landlordId = req.user['id'];
-
-    // return this
-
-    if (!landlordId) {
-      throw new BadRequestException('Missing x-user-id header');
-    }
-    return this.propertyService.findMyListings(landlordId);
+    return this.propertyService.findMyListings(
+      landlordId,
+    );
   }
 
   // Post Implementation for uploading property images
@@ -188,4 +147,5 @@ export class PropertyController {
         images: urls,
       };
     }
+
 }
