@@ -5,13 +5,28 @@ import { SavedPropertyService } from './saved-property.service';
 describe('SavedPropertyController', () => {
   let controller: SavedPropertyController;
 
+  const mockSavedPropertyService = {
+    saveProperty: jest.fn(),
+    removeBookmark: jest.fn(),
+    getSavedProperties: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SavedPropertyController],
-      providers: [SavedPropertyService],
+      providers: [
+        {
+          provide: SavedPropertyService,
+          useValue: mockSavedPropertyService,
+        },
+      ],
     }).compile();
 
-    controller = module.get<SavedPropertyController>(SavedPropertyController);
+    controller = module.get<SavedPropertyController>(
+      SavedPropertyController
+    );
+
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
