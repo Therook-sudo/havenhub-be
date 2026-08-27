@@ -77,8 +77,9 @@ export class PropertiesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Public Property Discovery Feed',
-    description: 'Fetch verified property listings with pagination and sorting.',
+    summary: 'Get All Property Listings (Discovery Feed)',
+    description:
+      'Primary endpoint for mobile and web clients to fetch all published property listings with pagination, landlord profiles, and sorting.',
   })
   @ApiResponse({ status: 200, description: 'Paginated list of property listings' })
   async findAll(@Query() queryDto: QueryPropertyDto) {
