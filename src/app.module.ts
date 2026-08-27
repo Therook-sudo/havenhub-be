@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
+import { AiModule } from './ai/ai.module';
 import {
   User,
   Property,
@@ -30,6 +31,7 @@ import {
       }),
     }),
     HealthModule,
+    AiModule,
   ],
 })
 export class AppModule {}
