@@ -1,19 +1,26 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
-import { Property } from '../entities/Property.entity';
-import { ListingStatus } from '../entities/enums';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { ConfigService } from "@nestjs/config";
+import { Repository } from "typeorm";
+import { Property } from "../entities/Property.entity";
+import { ListingStatus } from "../entities/enums";
 import {
   isDevAutoApproveEnabled,
   resolveNewListingStatus,
-} from '../config/feature-flags';
-import { QueryPropertyDto, PropertySortBy } from './dto/query-property.dto';
-import { UpdatePropertyStatusDto } from './dto/update-property-status.dto';
-import { CreatePropertyDto } from '../property/dto/create-property.dto';
-import { UpdatePropertyDto } from '../property/dto/update-property.dto';
+} from "../config/feature-flags";
+import { QueryPropertyDto, PropertySortBy } from "./dto/query-property.dto";
+import { UpdatePropertyStatusDto } from "./dto/update-property-status.dto";
+import { CreatePropertyDto } from "../property/dto/create-property.dto";
+import { UpdatePropertyDto } from "../property/dto/update-property.dto";
+import { Enquiry } from "@/entities";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class PropertiesService {
@@ -21,6 +28,8 @@ export class PropertiesService {
     @InjectRepository(Property)
     private readonly propertyRepository: Repository<Property>,
     private readonly configService: ConfigService,
+    @InjectRepository(Enquiry)
+    private readonly enquiryRepository: Repository<Enquiry>
   ) {}
 
   async findAll(queryDto: QueryPropertyDto) {
@@ -50,26 +59,26 @@ export class PropertiesService {
     } = queryDto;
 
     const queryBuilder = this.propertyRepository
-      .createQueryBuilder('property')
-      .leftJoinAndSelect('property.landlord', 'landlord')
+      .createQueryBuilder("property")
+      .leftJoinAndSelect("property.landlord", "landlord")
       .select([
-        'property',
-        'landlord.id',
-        'landlord.firstName',
-        'landlord.lastName',
-        'landlord.email',
-        'landlord.phoneNumber',
-        'landlord.role',
-        'landlord.isVerified',
-        'landlord.avatarUrl',
+        "property",
+        "landlord.id",
+        "landlord.firstName",
+        "landlord.lastName",
+        "landlord.email",
+        "landlord.phoneNumber",
+        "landlord.role",
+        "landlord.isVerified",
+        "landlord.avatarUrl",
       ]);
 
     // 1. Status Filtering
     if (status) {
-      queryBuilder.andWhere('property.status = :status', { status });
+      queryBuilder.andWhere("property.status = :status", { status });
     } else {
       if (!isDevAutoApproveEnabled(this.configService)) {
-        queryBuilder.andWhere('property.status = :defaultStatus', {
+        queryBuilder.andWhere("property.status = :defaultStatus", {
           defaultStatus: ListingStatus.APPROVED,
         });
       }
@@ -79,72 +88,82 @@ export class PropertiesService {
     if (search && search.trim().length > 0) {
       const searchTerms = `%${search.trim().toLowerCase()}%`;
       queryBuilder.andWhere(
-        '(LOWER(property.title) LIKE :searchTerms OR LOWER(property.description) LIKE :searchTerms OR LOWER(property.location) LIKE :searchTerms OR LOWER(property.city) LIKE :searchTerms OR LOWER(COALESCE(property.address, \'\')) LIKE :searchTerms)',
+        "(LOWER(property.title) LIKE :searchTerms OR LOWER(property.description) LIKE :searchTerms OR LOWER(property.location) LIKE :searchTerms OR LOWER(property.city) LIKE :searchTerms OR LOWER(COALESCE(property.address, '')) LIKE :searchTerms)",
         { searchTerms },
       );
     }
 
     // 3. Location Filters
     if (city && city.trim().length > 0) {
-      queryBuilder.andWhere('LOWER(property.city) = LOWER(:city)', { city: city.trim() });
+      queryBuilder.andWhere("LOWER(property.city) = LOWER(:city)", {
+        city: city.trim(),
+      });
     }
 
     if (state && state.trim().length > 0) {
-      queryBuilder.andWhere('LOWER(property.state) = LOWER(:state)', { state: state.trim() });
+      queryBuilder.andWhere("LOWER(property.state) = LOWER(:state)", {
+        state: state.trim(),
+      });
     }
 
     if (location && location.trim().length > 0) {
-      queryBuilder.andWhere('LOWER(property.location) LIKE LOWER(:location)', {
+      queryBuilder.andWhere("LOWER(property.location) LIKE LOWER(:location)", {
         location: `%${location.trim()}%`,
       });
     }
 
     // 4. Property Type Filter
     if (propertyType && propertyType.trim().length > 0) {
-      queryBuilder.andWhere('LOWER(property.propertyType) = LOWER(:propertyType)', {
-        propertyType: propertyType.trim(),
-      });
+      queryBuilder.andWhere(
+        "LOWER(property.propertyType) = LOWER(:propertyType)",
+        {
+          propertyType: propertyType.trim(),
+        },
+      );
     }
 
     // 5. Price Range Filter
     if (minPrice !== undefined && minPrice !== null) {
-      queryBuilder.andWhere('property.price >= :minPrice', { minPrice });
+      queryBuilder.andWhere("property.price >= :minPrice", { minPrice });
     }
 
     if (maxPrice !== undefined && maxPrice !== null) {
-      queryBuilder.andWhere('property.price <= :maxPrice', { maxPrice });
+      queryBuilder.andWhere("property.price <= :maxPrice", { maxPrice });
     }
 
     // 6. Bedroom & Bathroom Filters
     if (bedrooms !== undefined && bedrooms !== null) {
-      queryBuilder.andWhere('property.bedrooms >= :bedrooms', { bedrooms });
+      queryBuilder.andWhere("property.bedrooms >= :bedrooms", { bedrooms });
     }
 
     if (bathrooms !== undefined && bathrooms !== null) {
-      queryBuilder.andWhere('property.bathrooms >= :bathrooms', { bathrooms });
+      queryBuilder.andWhere("property.bathrooms >= :bathrooms", { bathrooms });
     }
 
     // 7. Amenity Filter
     if (amenity && amenity.trim().length > 0) {
-      queryBuilder.andWhere('LOWER(COALESCE(property.amenities, \'\')) LIKE LOWER(:amenity)', {
-        amenity: `%${amenity.trim()}%`,
-      });
+      queryBuilder.andWhere(
+        "LOWER(COALESCE(property.amenities, '')) LIKE LOWER(:amenity)",
+        {
+          amenity: `%${amenity.trim()}%`,
+        },
+      );
     }
 
     // 8. Sorting
     switch (sortBy) {
       case PropertySortBy.PRICE_ASC:
-        queryBuilder.orderBy('property.price', 'ASC');
+        queryBuilder.orderBy("property.price", "ASC");
         break;
       case PropertySortBy.PRICE_DESC:
-        queryBuilder.orderBy('property.price', 'DESC');
+        queryBuilder.orderBy("property.price", "DESC");
         break;
       case PropertySortBy.OLDEST:
-        queryBuilder.orderBy('property.createdAt', 'ASC');
+        queryBuilder.orderBy("property.createdAt", "ASC");
         break;
       case PropertySortBy.NEWEST:
       default:
-        queryBuilder.orderBy('property.createdAt', 'DESC');
+        queryBuilder.orderBy("property.createdAt", "DESC");
         break;
     }
 
@@ -173,15 +192,64 @@ export class PropertiesService {
 
   async findMyListings(landlordId: string): Promise<Property[]> {
     if (!landlordId) {
-      throw new BadRequestException('Landlord ID is required');
+      throw new BadRequestException("Landlord ID is required");
     }
     if (!UUID_REGEX.test(landlordId)) {
-      throw new BadRequestException(`Invalid Landlord ID format: "${landlordId}". Must be a valid UUID.`);
+      throw new BadRequestException(
+        `Invalid Landlord ID format: "${landlordId}". Must be a valid UUID.`,
+      );
     }
     return this.propertyRepository.find({
       where: { landlordId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
+  }
+
+  async myListingsStats(id) {
+    const [
+      totalListings,
+      activeApproved,
+      pendingReviews,
+      rejected,
+      totalEnquires,
+    ] = await Promise.all([
+      this.propertyRepository.count({
+        where: {
+          landlordId: id,
+        },
+      }),
+      this.propertyRepository.count({
+        where: {
+          landlordId: id,
+          status: ListingStatus.APPROVED,
+        },
+      }),
+      this.propertyRepository.count({
+        where: {
+          landlordId: id,
+          status: ListingStatus.PENDING_REVIEW,
+        },
+      }),
+      this.propertyRepository.count({
+        where: {
+          landlordId: id,
+          status: ListingStatus.REJECTED,
+        },
+      }),
+      this.enquiryRepository.count({
+        where: {
+          property: {id},
+        },
+      }),
+    ]);
+
+    return {
+      totalListings,
+      activeApproved,
+      pendingReviews,
+      rejected,
+      totalEnquires,
+    };
   }
 
   async findOne(id: string) {
@@ -190,30 +258,35 @@ export class PropertiesService {
     }
 
     const property = await this.propertyRepository
-      .createQueryBuilder('property')
-      .leftJoinAndSelect('property.landlord', 'landlord')
+      .createQueryBuilder("property")
+      .leftJoinAndSelect("property.landlord", "landlord")
       .select([
-        'property',
-        'landlord.id',
-        'landlord.firstName',
-        'landlord.lastName',
-        'landlord.email',
-        'landlord.phoneNumber',
-        'landlord.role',
-        'landlord.isVerified',
-        'landlord.avatarUrl',
+        "property",
+        "landlord.id",
+        "landlord.firstName",
+        "landlord.lastName",
+        "landlord.email",
+        "landlord.phoneNumber",
+        "landlord.role",
+        "landlord.isVerified",
+        "landlord.avatarUrl",
       ])
-      .where('property.id = :id', { id })
+      .where("property.id = :id", { id })
       .getOne();
 
     if (!property) {
-      throw new NotFoundException(`Property listing with ID "${id}" was not found.`);
+      throw new NotFoundException(
+        `Property listing with ID "${id}" was not found.`,
+      );
     }
 
     return property;
   }
 
-  async create(createPropertyDto: CreatePropertyDto, landlordId: string): Promise<Property> {
+  async create(
+    createPropertyDto: CreatePropertyDto,
+    landlordId: string,
+  ): Promise<Property> {
     // DEV_AUTO_APPROVE_LISTINGS=true -> APPROVED, otherwise PENDING_REVIEW.
     const status = resolveNewListingStatus(this.configService);
 
@@ -225,7 +298,11 @@ export class PropertiesService {
     return this.propertyRepository.save(property);
   }
 
-  async update(id: string, updatePropertyDto: UpdatePropertyDto, landlordId: string): Promise<Property> {
+  async update(
+    id: string,
+    updatePropertyDto: UpdatePropertyDto,
+    landlordId: string,
+  ): Promise<Property> {
     if (!UUID_REGEX.test(id)) {
       throw new NotFoundException(`Invalid Property UUID: "${id}"`);
     }
@@ -237,7 +314,9 @@ export class PropertiesService {
     }
 
     if (property.landlordId !== landlordId) {
-      throw new ForbiddenException('You are not authorized to update this property');
+      throw new ForbiddenException(
+        "You are not authorized to update this property",
+      );
     }
 
     Object.assign(property, updatePropertyDto);
@@ -266,7 +345,7 @@ export class PropertiesService {
     property.status = updateStatusDto.status;
     property.rejectionReason =
       updateStatusDto.status === ListingStatus.REJECTED
-        ? updateStatusDto.rejectionReason ?? null
+        ? (updateStatusDto.rejectionReason ?? null)
         : null;
 
     return this.propertyRepository.save(property);
@@ -284,7 +363,9 @@ export class PropertiesService {
     }
 
     if (property.landlordId !== landlordId) {
-      throw new ForbiddenException('You are not authorized to remove this property');
+      throw new ForbiddenException(
+        "You are not authorized to remove this property",
+      );
     }
 
     await this.propertyRepository.remove(property);
