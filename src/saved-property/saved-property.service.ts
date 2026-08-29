@@ -1,8 +1,14 @@
-import { Injectable, ConflictException, NotFoundException, } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SavedProperty, Property } from '@/entities';
+import { SavedProperty, Property } from '../entities';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class SavedPropertyService {
@@ -14,83 +20,74 @@ export class SavedPropertyService {
   ) {}
 
   async saveProperty(userId: string, propertyId: string) {
+    if (!UUID_REGEX.test(propertyId)) {
+      throw new BadRequestException(`Invalid Property UUID format: "${propertyId}"`);
+    }
+
     // Make sure the property exists
     const property = await this.propertyRepository.findOne({
       where: { id: propertyId },
     });
 
     if (!property) {
-      throw new NotFoundException(
-        'Property not found'
-      );
+      throw new NotFoundException('Property not found');
     }
 
-    //Prevent duplicate saves
-    const existingSavedProperty = 
-    await this.savedPropertyRepository.findOne({
+    // Prevent duplicate saves
+    const existingSavedProperty = await this.savedPropertyRepository.findOne({
       where: { userId, propertyId },
     });
 
     if (existingSavedProperty) {
-      throw new ConflictException(
-        'Property is already bookmarked'
-      );
+      throw new ConflictException('Property is already bookmarked');
     }
 
-    //Create bookmrk
+    // Create bookmark
     const savedProperty = this.savedPropertyRepository.create({
       userId,
       propertyId,
     });
 
-    const saved =
-    await this.savedPropertyRepository.save(
-      savedProperty
-    );
+    const saved = await this.savedPropertyRepository.save(savedProperty);
 
-    return{
+    return {
       message: 'Property bookmarked successfully',
       savedProperty: saved,
     };
-  
   }
 
-  async removeBookmark(
-    userId: string, 
-    propertyId: string
-  ) {
-    const savedProperty = 
-    await this.savedPropertyRepository.findOne({
+  async removeBookmark(userId: string, propertyId: string) {
+    if (!UUID_REGEX.test(propertyId)) {
+      throw new BadRequestException(`Invalid Property UUID format: "${propertyId}"`);
+    }
+
+    const savedProperty = await this.savedPropertyRepository.findOne({
       where: { userId, propertyId },
     });
 
     if (!savedProperty) {
-      throw new NotFoundException(
-        'Property is not bookmarked'
-      );
+      throw new NotFoundException('Property is not bookmarked');
     }
 
     await this.savedPropertyRepository.remove(savedProperty);
-    return{
+    return {
       message: 'Property bookmark removed successfully',
     };
   }
-  
+
   async getSavedProperties(userId: string) {
-    const savedProperties = 
-    await this.savedPropertyRepository.find({
+    const savedProperties = await this.savedPropertyRepository.find({
       where: { userId },
       relations: {
         property: {
           landlord: true,
         },
       },
-      order:{
+      order: {
         createdAt: 'DESC',
       },
     });
 
-    return savedProperties
+    return savedProperties;
   }
-
 }
