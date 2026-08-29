@@ -26,6 +26,9 @@ export class Enquiry {
   })
   status!: EnquiryStatus;
 
+  @Column({ type: 'timestamp', nullable: true })
+  readAt!: Date | null;
+
   @Column({default: false})
   isRead!: boolean;
 

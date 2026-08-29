@@ -198,4 +198,58 @@ export class EnquiriesService {
 
     return { message: "Thread archived successfully" };
   }
+
+  async getUnreadCount(user: User): Promise<{ unreadCount: number }> {
+    if (user.role !== Role.LANDLORD) {
+      return { unreadCount: 0 };
+    }
+
+    const unreadCount = await this.enquiryRepository.count({
+      where: {
+        property: { landlordId: user.id },
+        isRead: false,
+        isArchived: false,
+      },
+    });
+
+    return { unreadCount };
+  }
+
+  async markThreadAsRead(
+    user: User,
+    threadId: string,
+  ): Promise<{ message: string; updatedCount: number }> {
+    const rootEnquiry = await this.enquiryRepository.findOne({
+      where: { id: threadId },
+      relations: ['property'],
+    });
+
+    if (!rootEnquiry) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const isSeeker = rootEnquiry.seekerId === user.id;
+    const isLandlord = rootEnquiry.property.landlordId === user.id;
+
+    if (!isSeeker && !isLandlord) {
+      throw new ForbiddenException('You do not have access to this thread');
+    }
+
+    const result = await this.enquiryRepository.update(
+      {
+        propertyId: rootEnquiry.propertyId,
+        seekerId: rootEnquiry.seekerId,
+        isRead: false,
+      },
+      {
+        isRead: true,
+        readAt: new Date(),
+      },
+    );
+
+    return {
+      message: 'Thread marked as read',
+      updatedCount: result.affected ?? 0,
+    };
+  }
 }
