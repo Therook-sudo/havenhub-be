@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
+import { AiModule } from './ai/ai.module';
 import { PropertiesModule } from './properties/properties.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -55,6 +56,7 @@ import { SavedPropertyModule } from './saved-property/saved-property.module';
       }),
     }),
     HealthModule,
+    AiModule,
     PropertiesModule,
     UsersModule,
     AuthModule,
