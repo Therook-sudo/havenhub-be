@@ -9,12 +9,20 @@ const SUMMARY_BYPASS_WORD_COUNT = 30;
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: OpenAI;
+  private readonly client: OpenAI | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-    });
+    const apiKey =
+      this.configService.get<string>('OPENAI_API_KEY') ||
+      process.env.OPENAI_API_KEY;
+
+    if (apiKey && apiKey.trim().length > 0) {
+      this.client = new OpenAI({ apiKey: apiKey.trim() });
+    } else {
+      this.logger.warn(
+        'OPENAI_API_KEY environment variable is not configured. AiService will safely use built-in fallback copy templates for all requests.',
+      );
+    }
   }
 
   /**
@@ -22,6 +30,10 @@ export class AiService {
    * Frontend sends raw text (not structured fields) - see generate-description.dto.ts
    */
   async generateDescription(userInput: string): Promise<GenerateDescriptionResponse> {
+    if (!this.client) {
+      return this.descriptionFallback(userInput);
+    }
+
     const prompt = this.buildDescriptionPrompt(userInput);
 
     try {
@@ -73,6 +85,10 @@ export class AiService {
       return { success: true, highlights: [description.trim()] };
     }
 
+    if (!this.client) {
+      return this.summaryFallback(description);
+    }
+
     const prompt = this.buildSummaryPrompt(description);
 
     try {
@@ -106,7 +122,7 @@ export class AiService {
 
       return { success: true, highlights };
     } catch (err) {
-     this.logger.warn(`summarize failed/timed out: ${(err as Error).message}`);
+      this.logger.warn(`summarize failed/timed out: ${(err as Error).message}`);
       return this.summaryFallback(description);
     }
   }
