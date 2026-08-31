@@ -60,4 +60,17 @@ export class EnquiriesController {
   archiveThread(@Param("id") id: string, @Req() req) {
     return this.enquiriesService.archiveThread(id, req.user);
   }
+
+  @Get('unread-count')
+  getUnreadCount(@CurrentUser() user: User) {
+    return this.enquiriesService.getUnreadCount(user);
+  }
+
+  @Patch('threads/:threadId/read-all')
+  markThreadAsRead(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+  ) {
+    return this.enquiriesService.markThreadAsRead(user, threadId);
+  }
 }
