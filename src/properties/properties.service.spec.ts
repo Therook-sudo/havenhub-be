@@ -5,6 +5,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from '../entities/Property.entity';
+import { Enquiry } from '../entities/Enquiry.entity'
 import { ListingStatus } from '../entities/enums';
 import { DEV_AUTO_APPROVE_LISTINGS_PATH } from '../config/feature-flags';
 import { CreatePropertyDto } from '../property/dto/create-property.dto';
@@ -49,6 +50,12 @@ describe('PropertiesService', () => {
             findOne: jest.fn(),
             remove: jest.fn(),
             createQueryBuilder: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Enquiry),
+          useValue: {
+            count: jest.fn(),
           },
         },
         {
