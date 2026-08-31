@@ -47,7 +47,9 @@ async function bootstrap() {
     .addTag('Health Check', 'System health status and database connectivity monitoring')
     .addTag('Auth', 'User registration, login, JWT token management, and profile')
     .addTag('Properties', 'Public discovery feed, search filtering, and property details')
+    .addTag('Saved Properties', 'User saved property bookmarks')
     .addTag('Enquiries', 'Renter inquiry submission and messaging threads')
+    .addTag('AI Listing Assistant', 'AI-powered property description generation and highlight summarization')
     .addTag('Admin', 'Administrator moderation queue and audit logs')
     .addBearerAuth(
       {
