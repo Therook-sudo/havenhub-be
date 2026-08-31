@@ -1,0 +1,430 @@
+{
+  "info": {
+    "_postman_id": "havenhub-backend-postman-collection-v1",
+    "name": "HAVENHUB Backend REST API Collection",
+    "description": "Postman API testing collection for HAVENHUB Property Rental Marketplace backend service.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "propertyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminAuthToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Check System Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication (US-00)",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@havenhub.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"Emeka\",\n  \"lastName\": \"Okonkwo\",\n  \"role\": \"PROPERTY_SEEKER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "User Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@havenhub.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Properties (US-01, US-03, US-04)",
+      "item": [
+        {
+          "name": "Public Property Feed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/properties?page=1&limit=10&city=Lagos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "city",
+                  "value": "Lagos"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Dynamic Search & Filter Engine (US-01)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/properties/search?search=Lekki&city=Lagos&propertyType=Apartment&minPrice=1000000&maxPrice=5000000&bedrooms=3&bathrooms=2&sortBy=price_asc&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Lekki"
+                },
+                {
+                  "key": "city",
+                  "value": "Lagos"
+                },
+                {
+                  "key": "propertyType",
+                  "value": "Apartment"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "1000000"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "5000000"
+                },
+                {
+                  "key": "bedrooms",
+                  "value": "3"
+                },
+                {
+                  "key": "bathrooms",
+                  "value": "2"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "price_asc"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Property Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/properties/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "property-uuid-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Property Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Luxury 3 Bedroom Apartment in Lekki Phase 1\",\n  \"description\": \"Modern apartment with 24/7 power supply, swimming pool, and round-the-clock security.\",\n  \"price\": 3500000,\n  \"currency\": \"NGN\",\n  \"location\": \"Lekki Phase 1, Lagos\",\n  \"address\": \"Admiralty Way, Lekki\",\n  \"city\": \"Lagos\",\n  \"state\": \"Lagos State\",\n  \"propertyType\": \"Apartment\",\n  \"bedrooms\": 3,\n  \"bathrooms\": 3,\n  \"amenities\": [\"24/7 Power\", \"Swimming Pool\", \"Security\", \"Parking\"],\n  \"images\": [\"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Property Listing (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAuthToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties/{{propertyId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                "{{propertyId}}",
+                "status"
+              ]
+            },
+            "description": "Requires an ADMIN Bearer JWT. Publishes the listing to the public feed and clears any stored rejectionReason."
+          }
+        },
+        {
+          "name": "Reject Property Listing (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAuthToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\",\n  \"rejectionReason\": \"Listing photos do not match the described property.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties/{{propertyId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                "{{propertyId}}",
+                "status"
+              ]
+            },
+            "description": "Requires an ADMIN Bearer JWT. Stores rejectionReason for the landlord."
+          }
+        },
+        {
+          "name": "Return Listing To Review (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAuthToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PENDING_REVIEW\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties/{{propertyId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "properties",
+                "{{propertyId}}",
+                "status"
+              ]
+            },
+            "description": "Requires an ADMIN Bearer JWT. Sends the listing back to the moderation queue."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Direct Messaging & Enquiries (US-05)",
+      "item": [
+        {
+          "name": "Send Property Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"propertyId\": \"{{propertyId}}\",\n  \"message\": \"Hello, is this property still available for inspection this weekend?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/enquiries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enquiries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Inbox Threads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enquiries/threads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enquiries",
+                "threads"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

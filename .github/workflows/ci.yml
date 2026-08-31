@@ -31,5 +31,8 @@ jobs:
       - name: Run Type Check (Strict TypeScript Verification)
         run: npm run type-check
 
+      - name: Run Unit Tests (Jest)
+        run: npm test
+
       - name: Run NestJS Production Build
         run: npm run build

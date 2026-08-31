@@ -26,3 +26,4 @@ export enum ReportStatus {
   RESOLVED = 'RESOLVED',
   DISMISSED = 'DISMISSED',
 }
+

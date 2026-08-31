@@ -6,43 +6,51 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-} from 'typeorm';
-import { EnquiryStatus } from './enums';
-import { Property } from './Property.entity';
-import { User } from './User.entity';
+} from "typeorm";
+import { EnquiryStatus } from "./enums";
+import { Property } from "./Property.entity";
+import { User } from "./User.entity";
 
-@Entity('enquiries')
+@Entity("enquiries")
 export class Enquiry {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn("uuid")
+  id!: string;
 
-  @Column('text')
-  message: string;
+  @Column("text")
+  message!: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: EnquiryStatus,
     default: EnquiryStatus.PENDING,
   })
-  status: EnquiryStatus;
+  status!: EnquiryStatus;
+
+  @Column({default: false})
+  isRead!: boolean;
+
+  @Column({default: false})
+  isArchived!: boolean;
 
   @Column()
-  propertyId: string;
+  propertyId!: string;
 
-  @ManyToOne(() => Property, (property) => property.enquiries, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'propertyId' })
-  property: Property;
+  @ManyToOne(() => Property, (property) => property.enquiries, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "propertyId" })
+  property!: Property;
 
   @Column()
-  seekerId: string;
+  seekerId!: string;
 
-  @ManyToOne(() => User, (user) => user.enquiriesSent, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'seekerId' })
-  seeker: User;
+  @ManyToOne(() => User, (user) => user.enquiriesSent, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "seekerId" })
+  seeker!: User;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
