@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateDescriptionResponse, SummarizeResponse } from './ai.types';
 
-const LLM_TIMEOUT_MS = 3000;
+const LLM_TIMEOUT_MS = 10000; // 10 seconds for reliable cloud-to-cloud latency
 const SUMMARY_BYPASS_WORD_COUNT = 30;
 
 @Injectable()
@@ -11,30 +11,33 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly client: OpenAI | null = null;
 
-    constructor(private readonly configService: ConfigService) {
-    // Using Groq's free tier via its OpenAI-compatible API.
-    // No billing required for the free tier as of this writing.
+  constructor(private readonly configService: ConfigService) {
     const apiKey =
-      this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
+      this.configService.get<string>('GROQ_API_KEY') ||
+      process.env.GROQ_API_KEY ||
+      this.configService.get<string>('OPENAI_API_KEY') ||
+      process.env.OPENAI_API_KEY;
 
     if (apiKey && apiKey.trim().length > 0) {
+      const isGroq = apiKey.startsWith('gsk_') || !apiKey.startsWith('sk-');
       this.client = new OpenAI({
         apiKey: apiKey.trim(),
-        baseURL: 'https://api.groq.com/openai/v1',
+        baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
       });
+      this.logger.log(`AiService initialized successfully with ${isGroq ? 'Groq' : 'OpenAI'} provider.`);
     } else {
       this.logger.warn(
-        'GROQ_API_KEY environment variable is not configured. AiService will safely use built-in fallback copy templates for all requests.',
+        'GROQ_API_KEY / OPENAI_API_KEY is not configured in environment variables. AiService will safely use built-in fallback copy templates.',
       );
     }
   }
 
   /**
    * Generates a property description from freeform landlord input.
-   * Frontend sends raw text (not structured fields) - see generate-description.dto.ts
    */
   async generateDescription(userInput: string): Promise<GenerateDescriptionResponse> {
     if (!this.client) {
+      this.logger.warn('generateDescription: No API key configured, using fallback template.');
       return this.descriptionFallback(userInput);
     }
 
@@ -48,15 +51,15 @@ export class AiService {
             {
               role: 'system',
               content:
-                'You are a real estate copywriter for a Nigerian property rental platform. ' +
-                'Write clear, appealing, factual property descriptions. Do not invent details ' +
-                'the user did not mention (e.g. do not add a pool if none was stated). ' +
-                'Keep it to 2-4 sentences. Do not use markdown formatting.',
+                'You are a professional real estate copywriter for a Nigerian property rental marketplace. ' +
+                'Write clear, appealing, factual property descriptions. Do not invent features ' +
+                'the user did not mention (e.g. do not add a swimming pool if none was stated). ' +
+                'Keep it concise (2-4 sentences). Do not use markdown formatting.',
             },
             { role: 'user', content: prompt },
           ],
           temperature: 0.7,
-          max_tokens: 200,
+          max_tokens: 300,
         }),
         LLM_TIMEOUT_MS,
       );
@@ -82,14 +85,11 @@ export class AiService {
     const wordCount = description.trim().split(/\s+/).filter(Boolean).length;
 
     if (wordCount < SUMMARY_BYPASS_WORD_COUNT) {
-      // Per PRD: short descriptions bypass AI and return the raw text.
-      // Frontend expects a `highlights` string array regardless, so we
-      // return the raw text as a single-element array to keep the
-      // response shape consistent for the frontend's map/loop logic.
       return { success: true, highlights: [description.trim()] };
     }
 
     if (!this.client) {
+      this.logger.warn('summarize: No API key configured, using fallback template.');
       return this.summaryFallback(description);
     }
 
@@ -103,16 +103,15 @@ export class AiService {
             {
               role: 'system',
               content:
-                'You extract exactly 3 concise selling points from property listing ' +
-                'descriptions (e.g. proximity, utilities, parking, amenities). ' +
-                'Respond with ONLY a JSON array of exactly 3 short strings, no markdown, ' +
-                'no extra commentary. Example: ["Spacious 3-bedroom layout", ' +
-                '"Private swimming pool access", "24/7 continuous power supply"]',
+                'Extract exactly 3 concise selling points from this Nigerian property rental description ' +
+                '(e.g. location convenience, utilities, parking, security, amenities). ' +
+                'Respond with ONLY a JSON array of 3 short strings, with no extra markdown or explanations. ' +
+                'Example: ["Spacious 3-bedroom master layout", "24/7 continuous power supply", "Private gated security with ample parking"]',
             },
             { role: 'user', content: prompt },
           ],
-          temperature: 0.3,
-          max_tokens: 150,
+          temperature: 0.2,
+          max_tokens: 200,
         }),
         LLM_TIMEOUT_MS,
       );
@@ -120,7 +119,7 @@ export class AiService {
       const raw = completion.choices[0]?.message?.content?.trim() ?? '';
       const highlights = this.parseHighlights(raw);
 
-      if (!highlights) {
+      if (!highlights || highlights.length === 0) {
         return this.summaryFallback(description);
       }
 
@@ -139,24 +138,50 @@ export class AiService {
     return `Extract exactly 3 key highlights from this property description:\n\n${description}`;
   }
 
+  /**
+   * Multi-strategy highlight parser: handles JSON arrays, markdown code fences, and bullet points.
+   */
   private parseHighlights(raw: string): string[] | null {
+    if (!raw || raw.trim().length === 0) return null;
+
     try {
-      // Strip potential markdown code fences just in case the model adds them
+      // Strategy 1: Direct JSON parsing with cleanup
       const cleaned = raw.replace(/^```json\s*|```$/g, '').trim();
       const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every((h) => typeof h === 'string')) {
-        return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((h) => typeof h === 'string')) {
+        return parsed.slice(0, 3);
       }
-      return null;
     } catch {
-      return null;
+      // Ignore JSON parse error, proceed to fallback strategies
     }
+
+    try {
+      // Strategy 2: Regex extraction of JSON array from anywhere in the output
+      const jsonMatch = raw.match(/\[\s*"(?:[^"\\]|\\.)*"(?:\s*,\s*"(?:[^"\\]|\\.)*")*\s*\]/s);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.slice(0, 3);
+        }
+      }
+    } catch {
+      // Ignore regex JSON parse error
+    }
+
+    // Strategy 3: Bullet points / line split fallback
+    const lines = raw
+      .split('\n')
+      .map((line) => line.replace(/^[-*•\d.)\]\s]+/, '').replace(/^["']|["']$/g, '').trim())
+      .filter((line) => line.length > 3 && !line.startsWith('[') && !line.startsWith(']'));
+
+    if (lines.length >= 3) {
+      return lines.slice(0, 3);
+    }
+
+    return null;
   }
 
   private descriptionFallback(userInput: string): GenerateDescriptionResponse {
-    // Graceful degradation per NFR: never block listing creation.
-    // Return the user's own input as the description so the textarea
-    // still has editable content, just not AI-enhanced.
     return {
       success: true,
       generatedDescription: userInput,
