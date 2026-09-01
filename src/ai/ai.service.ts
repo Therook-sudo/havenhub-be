@@ -8,12 +8,8 @@ const SUMMARY_BYPASS_WORD_COUNT = 30;
 
 // Supported production models on Groq in priority order
 const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'llama3-8b-8192',
-  'llama3-70b-8192',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it',
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-120b',
 ];
 
 @Injectable()
