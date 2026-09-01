@@ -21,9 +21,8 @@ import { CloudinaryService } from './cloudinary/cloudinary.service';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
 import { SavedPropertyModule } from './saved-property/saved-property.module';
-import { AdminController } from './admin/admin.controller';
-import { AdminService } from './admin/admin.service';
 import { AdminModule } from './admin/admin.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -67,6 +66,7 @@ import { AdminModule } from './admin/admin.module';
     CloudinaryModule,
     SavedPropertyModule,
     AdminModule,
+    AuditLogModule,
   ],
   controllers: [AppController],
   providers: [CloudinaryService],
