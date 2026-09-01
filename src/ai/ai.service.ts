@@ -11,16 +11,20 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly client: OpenAI | null = null;
 
-  constructor(private readonly configService: ConfigService) {
+    constructor(private readonly configService: ConfigService) {
+    // Using Groq's free tier via its OpenAI-compatible API.
+    // No billing required for the free tier as of this writing.
     const apiKey =
-      this.configService.get<string>('OPENAI_API_KEY') ||
-      process.env.OPENAI_API_KEY;
+      this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
 
     if (apiKey && apiKey.trim().length > 0) {
-      this.client = new OpenAI({ apiKey: apiKey.trim() });
+      this.client = new OpenAI({
+        apiKey: apiKey.trim(),
+        baseURL: 'https://api.groq.com/openai/v1',
+      });
     } else {
       this.logger.warn(
-        'OPENAI_API_KEY environment variable is not configured. AiService will safely use built-in fallback copy templates for all requests.',
+        'GROQ_API_KEY environment variable is not configured. AiService will safely use built-in fallback copy templates for all requests.',
       );
     }
   }
@@ -39,7 +43,7 @@ export class AiService {
     try {
       const completion = await this.withTimeout(
         this.client.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [
             {
               role: 'system',
@@ -94,7 +98,7 @@ export class AiService {
     try {
       const completion = await this.withTimeout(
         this.client.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [
             {
               role: 'system',
