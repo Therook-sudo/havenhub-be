@@ -13,23 +13,23 @@ import { User } from './User.entity';
 @Entity('reports')
 export class Report {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  reporterId: string;
+  reporterId!: string;
 
   @ManyToOne(() => User, (user) => user.reportsSubmitted, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'reporterId' })
-  reporter: User;
+  reporter!: User;
 
   @Column()
-  targetType: string;
+  targetType!: string;
 
   @Column()
-  targetId: string;
+  targetId!: string;
 
   @Column()
-  reason: string;
+  reason!: string;
 
   @Column('text', { nullable: true })
   details?: string;
@@ -39,11 +39,11 @@ export class Report {
     enum: ReportStatus,
     default: ReportStatus.PENDING,
   })
-  status: ReportStatus;
+  status!: ReportStatus;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

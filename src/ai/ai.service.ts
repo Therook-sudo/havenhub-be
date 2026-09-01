@@ -9,15 +9,24 @@ const SUMMARY_BYPASS_WORD_COUNT = 30;
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: OpenAI;
+  private readonly client: OpenAI | null = null;
 
-  constructor(private readonly configService: ConfigService) {
+    constructor(private readonly configService: ConfigService) {
     // Using Groq's free tier via its OpenAI-compatible API.
     // No billing required for the free tier as of this writing.
-    this.client = new OpenAI({
-      apiKey: this.configService.get<string>('GROQ_API_KEY'),
-      baseURL: 'https://api.groq.com/openai/v1',
-    });
+    const apiKey =
+      this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
+
+    if (apiKey && apiKey.trim().length > 0) {
+      this.client = new OpenAI({
+        apiKey: apiKey.trim(),
+        baseURL: 'https://api.groq.com/openai/v1',
+      });
+    } else {
+      this.logger.warn(
+        'GROQ_API_KEY environment variable is not configured. AiService will safely use built-in fallback copy templates for all requests.',
+      );
+    }
   }
 
   /**
@@ -25,6 +34,10 @@ export class AiService {
    * Frontend sends raw text (not structured fields) - see generate-description.dto.ts
    */
   async generateDescription(userInput: string): Promise<GenerateDescriptionResponse> {
+    if (!this.client) {
+      return this.descriptionFallback(userInput);
+    }
+
     const prompt = this.buildDescriptionPrompt(userInput);
 
     try {
@@ -74,6 +87,10 @@ export class AiService {
       // return the raw text as a single-element array to keep the
       // response shape consistent for the frontend's map/loop logic.
       return { success: true, highlights: [description.trim()] };
+    }
+
+    if (!this.client) {
+      return this.summaryFallback(description);
     }
 
     const prompt = this.buildSummaryPrompt(description);

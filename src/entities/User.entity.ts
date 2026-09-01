@@ -16,19 +16,19 @@ import { AuditLog } from './AuditLog.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ unique: true })
-  email: string;
+  email!: string;
 
   @Column()
-  passwordHash: string;
+  passwordHash!: string;
 
   @Column()
-  firstName: string;
+  firstName!: string;
 
   @Column()
-  lastName: string;
+  lastName!: string;
 
   @Column({ nullable: true })
   phoneNumber?: string;
@@ -38,32 +38,32 @@ export class User {
     enum: Role,
     default: Role.PROPERTY_SEEKER,
   })
-  role: Role;
+  role!: Role;
 
   @Column({ default: false })
-  isVerified: boolean;
+  isVerified!: boolean;
 
   @Column({ nullable: true })
   avatarUrl?: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(() => Property, (property) => property.landlord)
-  listings: Property[];
+  listings!: Property[];
 
   @OneToMany(() => Enquiry, (enquiry) => enquiry.seeker)
-  enquiriesSent: Enquiry[];
+  enquiriesSent!: Enquiry[];
 
   @OneToMany(() => SavedProperty, (saved) => saved.user)
-  savedProperties: SavedProperty[];
+  savedProperties!: SavedProperty[];
 
   @OneToMany(() => Report, (report) => report.reporter)
-  reportsSubmitted: Report[];
+  reportsSubmitted!: Report[];
 
   @OneToMany(() => AuditLog, (log) => log.admin)
-  auditLogs: AuditLog[];
+  auditLogs!: AuditLog[];
 }

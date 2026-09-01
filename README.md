@@ -62,6 +62,28 @@ npm run start:dev
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/health` | System health status & PostgreSQL TypeORM connection check |
 | `GET` | `/api/docs` | Interactive Swagger API documentation |
+| `PATCH` | `/api/v1/properties/:id/status` | **Admin only.** Move a listing to `PENDING_REVIEW`, `APPROVED`, or `REJECTED` |
+
+---
+
+## Feature Flags
+
+| Variable | Values | Default | Effect |
+| :--- | :--- | :--- | :--- |
+| `DEV_AUTO_APPROVE_LISTINGS` | `true` / `false` | `false` | `true` creates new property listings as `APPROVED` (bypassing moderation) and shows every status in the public feed. `false` creates them as `PENDING_REVIEW`, and the public feed only returns `APPROVED` listings. |
+
+Only the literal string `true` enables the flag; any other value (or an unset variable) leaves it off.
+Keep it `false` in production — an admin approves listings through
+`PATCH /api/v1/properties/:id/status`.
+
+---
+
+## Testing
+
+```bash
+npm test          # run the Jest unit test suite
+npm run test:cov  # run with coverage
+```
 
 ---
 
