@@ -3,13 +3,24 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateDescriptionResponse, SummarizeResponse } from './ai.types';
 
-const LLM_TIMEOUT_MS = 15000; // 15 seconds for robust cloud-to-cloud execution
+const LLM_TIMEOUT_MS = 15000;
 const SUMMARY_BYPASS_WORD_COUNT = 30;
+
+// Supported production models on Groq in priority order
+const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'llama3-8b-8192',
+  'llama3-70b-8192',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
+];
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly client: OpenAI | null = null;
+  private readonly isGroq: boolean = true;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey =
@@ -19,12 +30,14 @@ export class AiService {
       process.env.OPENAI_API_KEY;
 
     if (apiKey && apiKey.trim().length > 0) {
-      const isGroq = apiKey.startsWith('gsk_') || !apiKey.startsWith('sk-');
+      this.isGroq = apiKey.startsWith('gsk_') || !apiKey.startsWith('sk-');
       this.client = new OpenAI({
         apiKey: apiKey.trim(),
-        baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+        baseURL: this.isGroq ? 'https://api.groq.com/openai/v1' : undefined,
       });
-      this.logger.log(`AiService initialized successfully with ${isGroq ? 'Groq' : 'OpenAI'} provider.`);
+      this.logger.log(
+        `AiService initialized successfully with ${this.isGroq ? 'Groq' : 'OpenAI'} provider.`,
+      );
     } else {
       this.logger.warn(
         'GROQ_API_KEY / OPENAI_API_KEY is not configured in environment variables. AiService will safely use built-in fallback copy templates.',
@@ -37,45 +50,54 @@ export class AiService {
    */
   async generateDescription(userInput: string): Promise<GenerateDescriptionResponse> {
     if (!this.client) {
-      this.logger.warn('generateDescription: No API key configured in environment variables.');
-      return this.descriptionFallback(userInput, 'GROQ_API_KEY is not configured in Render environment variables');
+      return this.descriptionFallback(userInput, 'GROQ_API_KEY is not configured in environment variables');
     }
 
     const prompt = this.buildDescriptionPrompt(userInput);
+    const modelsToTry = this.isGroq ? GROQ_MODELS : ['gpt-4o-mini', 'gpt-3.5-turbo'];
 
-    try {
-      const completion = await this.withTimeout(
-        this.client.chat.completions.create({
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a professional real estate copywriter for a Nigerian property rental marketplace. ' +
-                'Write clear, appealing, factual property descriptions. Do not invent features ' +
-                'the user did not mention (e.g. do not add a swimming pool if none was stated). ' +
-                'Keep it concise (2-4 sentences). Do not use markdown formatting.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 300,
-        }),
-        LLM_TIMEOUT_MS,
-      );
+    let lastError: Error | null = null;
 
-      const generatedDescription = completion.choices[0]?.message?.content?.trim();
+    for (const model of modelsToTry) {
+      try {
+        const completion = await this.withTimeout(
+          this.client.chat.completions.create({
+            model,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a professional real estate copywriter for a Nigerian property rental marketplace. ' +
+                  'Write clear, appealing, factual property descriptions. Do not invent features ' +
+                  'the user did not mention (e.g. do not add a swimming pool if none was stated). ' +
+                  'Keep it concise (2-4 sentences). Do not use markdown formatting.',
+              },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.7,
+            max_tokens: 300,
+          }),
+          LLM_TIMEOUT_MS,
+        );
 
-      if (!generatedDescription) {
-        return this.descriptionFallback(userInput, 'LLM returned empty completion');
+        const generatedDescription = completion.choices[0]?.message?.content?.trim();
+
+        if (generatedDescription) {
+          return { success: true, generatedDescription };
+        }
+      } catch (err) {
+        lastError = err as Error;
+        this.logger.warn(`Model [${model}] failed: ${(err as Error).message}. Trying next available model...`);
+        // If it's a 404 (model not found), continue trying the next candidate model
+        if ((err as Error).message?.includes('404') || (err as Error).message?.includes('does not exist')) {
+          continue;
+        }
+        break;
       }
-
-      return { success: true, generatedDescription };
-    } catch (err) {
-      const errorMsg = (err as Error).message;
-      this.logger.warn(`generateDescription failed/timed out: ${errorMsg}`);
-      return this.descriptionFallback(userInput, errorMsg);
     }
+
+    const errorMsg = lastError ? lastError.message : 'No available models succeeded';
+    return this.descriptionFallback(userInput, errorMsg);
   }
 
   /**
@@ -90,46 +112,54 @@ export class AiService {
     }
 
     if (!this.client) {
-      this.logger.warn('summarize: No API key configured in environment variables.');
-      return this.summaryFallback(description, 'GROQ_API_KEY is not configured in Render environment variables');
+      return this.summaryFallback(description, 'GROQ_API_KEY is not configured in environment variables');
     }
 
     const prompt = this.buildSummaryPrompt(description);
+    const modelsToTry = this.isGroq ? GROQ_MODELS : ['gpt-4o-mini', 'gpt-3.5-turbo'];
 
-    try {
-      const completion = await this.withTimeout(
-        this.client.chat.completions.create({
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'Extract exactly 3 concise selling points from this Nigerian property rental description ' +
-                '(e.g. location convenience, utilities, parking, security, amenities). ' +
-                'Respond with ONLY a JSON array of 3 short strings, with no extra markdown or explanations. ' +
-                'Example: ["Spacious 3-bedroom master layout", "24/7 continuous power supply", "Private gated security with ample parking"]',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.2,
-          max_tokens: 200,
-        }),
-        LLM_TIMEOUT_MS,
-      );
+    let lastError: Error | null = null;
 
-      const raw = completion.choices[0]?.message?.content?.trim() ?? '';
-      const highlights = this.parseHighlights(raw);
+    for (const model of modelsToTry) {
+      try {
+        const completion = await this.withTimeout(
+          this.client.chat.completions.create({
+            model,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Extract exactly 3 concise selling points from this Nigerian property rental description ' +
+                  '(e.g. location convenience, utilities, parking, security, amenities). ' +
+                  'Respond with ONLY a JSON array of 3 short strings, with no extra markdown or explanations. ' +
+                  'Example: ["Spacious 3-bedroom master layout", "24/7 continuous power supply", "Private gated security with ample parking"]',
+              },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.2,
+            max_tokens: 200,
+          }),
+          LLM_TIMEOUT_MS,
+        );
 
-      if (!highlights || highlights.length === 0) {
-        return this.summaryFallback(description, `Could not parse 3 highlights from response: "${raw}"`);
+        const raw = completion.choices[0]?.message?.content?.trim() ?? '';
+        const highlights = this.parseHighlights(raw);
+
+        if (highlights && highlights.length > 0) {
+          return { success: true, highlights };
+        }
+      } catch (err) {
+        lastError = err as Error;
+        this.logger.warn(`Model [${model}] failed in summarize: ${(err as Error).message}. Trying next available model...`);
+        if ((err as Error).message?.includes('404') || (err as Error).message?.includes('does not exist')) {
+          continue;
+        }
+        break;
       }
-
-      return { success: true, highlights };
-    } catch (err) {
-      const errorMsg = (err as Error).message;
-      this.logger.warn(`summarize failed/timed out: ${errorMsg}`);
-      return this.summaryFallback(description, errorMsg);
     }
+
+    const errorMsg = lastError ? lastError.message : 'Could not extract 3 highlights from model';
+    return this.summaryFallback(description, errorMsg);
   }
 
   private buildDescriptionPrompt(userInput: string): string {
