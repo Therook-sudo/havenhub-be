@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateDescriptionResponse, SummarizeResponse } from './ai.types';
 
-const LLM_TIMEOUT_MS = 10000; // 10 seconds for reliable cloud-to-cloud latency
+const LLM_TIMEOUT_MS = 15000; // 15 seconds for robust cloud-to-cloud execution
 const SUMMARY_BYPASS_WORD_COUNT = 30;
 
 @Injectable()
@@ -37,8 +37,8 @@ export class AiService {
    */
   async generateDescription(userInput: string): Promise<GenerateDescriptionResponse> {
     if (!this.client) {
-      this.logger.warn('generateDescription: No API key configured, using fallback template.');
-      return this.descriptionFallback(userInput);
+      this.logger.warn('generateDescription: No API key configured in environment variables.');
+      return this.descriptionFallback(userInput, 'GROQ_API_KEY is not configured in Render environment variables');
     }
 
     const prompt = this.buildDescriptionPrompt(userInput);
@@ -67,13 +67,14 @@ export class AiService {
       const generatedDescription = completion.choices[0]?.message?.content?.trim();
 
       if (!generatedDescription) {
-        return this.descriptionFallback(userInput);
+        return this.descriptionFallback(userInput, 'LLM returned empty completion');
       }
 
       return { success: true, generatedDescription };
     } catch (err) {
-      this.logger.warn(`generateDescription failed/timed out: ${(err as Error).message}`);
-      return this.descriptionFallback(userInput);
+      const errorMsg = (err as Error).message;
+      this.logger.warn(`generateDescription failed/timed out: ${errorMsg}`);
+      return this.descriptionFallback(userInput, errorMsg);
     }
   }
 
@@ -89,8 +90,8 @@ export class AiService {
     }
 
     if (!this.client) {
-      this.logger.warn('summarize: No API key configured, using fallback template.');
-      return this.summaryFallback(description);
+      this.logger.warn('summarize: No API key configured in environment variables.');
+      return this.summaryFallback(description, 'GROQ_API_KEY is not configured in Render environment variables');
     }
 
     const prompt = this.buildSummaryPrompt(description);
@@ -120,13 +121,14 @@ export class AiService {
       const highlights = this.parseHighlights(raw);
 
       if (!highlights || highlights.length === 0) {
-        return this.summaryFallback(description);
+        return this.summaryFallback(description, `Could not parse 3 highlights from response: "${raw}"`);
       }
 
       return { success: true, highlights };
     } catch (err) {
-      this.logger.warn(`summarize failed/timed out: ${(err as Error).message}`);
-      return this.summaryFallback(description);
+      const errorMsg = (err as Error).message;
+      this.logger.warn(`summarize failed/timed out: ${errorMsg}`);
+      return this.summaryFallback(description, errorMsg);
     }
   }
 
@@ -181,19 +183,21 @@ export class AiService {
     return null;
   }
 
-  private descriptionFallback(userInput: string): GenerateDescriptionResponse {
+  private descriptionFallback(userInput: string, error?: string): GenerateDescriptionResponse {
     return {
       success: true,
       generatedDescription: userInput,
       fallback: true,
+      error,
     };
   }
 
-  private summaryFallback(description: string): SummarizeResponse {
+  private summaryFallback(description: string, error?: string): SummarizeResponse {
     return {
       success: true,
       highlights: [description.trim()],
       fallback: true,
+      error,
     };
   }
 
