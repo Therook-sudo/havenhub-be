@@ -12,8 +12,11 @@ export class AiService {
   private readonly client: OpenAI;
 
   constructor(private readonly configService: ConfigService) {
+    // Using Groq's free tier via its OpenAI-compatible API.
+    // No billing required for the free tier as of this writing.
     this.client = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
+      apiKey: this.configService.get<string>('GROQ_API_KEY'),
+      baseURL: 'https://api.groq.com/openai/v1',
     });
   }
 
@@ -27,7 +30,7 @@ export class AiService {
     try {
       const completion = await this.withTimeout(
         this.client.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [
             {
               role: 'system',
@@ -78,7 +81,7 @@ export class AiService {
     try {
       const completion = await this.withTimeout(
         this.client.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [
             {
               role: 'system',
@@ -106,7 +109,7 @@ export class AiService {
 
       return { success: true, highlights };
     } catch (err) {
-     this.logger.warn(`summarize failed/timed out: ${(err as Error).message}`);
+      this.logger.warn(`summarize failed/timed out: ${(err as Error).message}`);
       return this.summaryFallback(description);
     }
   }
