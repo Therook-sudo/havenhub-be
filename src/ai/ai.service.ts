@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateDescriptionResponse, SummarizeResponse } from './ai.types';
 
-const LLM_TIMEOUT_MS = 15000;
+const LLM_TIMEOUT_MS = 3000;
 const SUMMARY_BYPASS_WORD_COUNT = 30;
 
 // Supported production models on Groq in priority order
