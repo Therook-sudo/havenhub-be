@@ -289,9 +289,27 @@ export class PropertiesService {
   ): Promise<Property> {
     // DEV_AUTO_APPROVE_LISTINGS=true -> APPROVED, otherwise PENDING_REVIEW.
     const status = resolveNewListingStatus(this.configService);
+    const { rentPrice, floorNumber, squareFootage, ...sanitizedDto } =
+      createPropertyDto as any;
 
-    const property = this.propertyRepository.create({
-      ...createPropertyDto,
+    const property: Property = this.propertyRepository.create({
+      title: createPropertyDto.title,
+      description: createPropertyDto.description,
+      price: createPropertyDto.price ?? rentPrice ?? 0,
+      currency: createPropertyDto.currency || 'NGN',
+      location:
+        createPropertyDto.location ||
+        createPropertyDto.address ||
+        createPropertyDto.city ||
+        'Lagos',
+      address: createPropertyDto.address,
+      city: createPropertyDto.city || 'Lagos',
+      state: createPropertyDto.state || 'Lagos State',
+      propertyType: createPropertyDto.propertyType || 'Apartment',
+      bedrooms: createPropertyDto.bedrooms ?? 1,
+      bathrooms: createPropertyDto.bathrooms ?? 1,
+      amenities: createPropertyDto.amenities || [],
+      images: createPropertyDto.images || [],
       landlordId,
       status,
     });
