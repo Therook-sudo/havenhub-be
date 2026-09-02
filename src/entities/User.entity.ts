@@ -43,6 +43,15 @@ export class User {
   @Column({ default: false })
   isVerified!: boolean;
 
+  @Column({type: 'boolean', default: false})
+  isSuspended!: boolean;
+
+  @Column({type: 'varchar', nullable: true})
+  suspensionReason?: string | null;
+
+  @Column({type: 'timestamp', nullable: true})
+  suspendedAt?: Date | null;
+
   @Column({ nullable: true })
   avatarUrl?: string;
 

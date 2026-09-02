@@ -6,14 +6,19 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { AdminPropertiesController } from './admin-properties.controller';
-import { AdminPropertiesService } from './admin-properties.service';
-import { AuditLogService } from '@/audit-log/audit-log.service';
+import { AuditLogModule } from '@/audit-log/audit-log.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Property, Enquiry, AuditLog])],
-  controllers: [AdminController, AdminPropertiesController],
-  providers: [AdminService, AdminPropertiesService, AuditLogService],
-  exports: [AdminService, AdminPropertiesService],
+  imports: [
+    TypeOrmModule.forFeature([
+      User, 
+      Property, 
+      Enquiry,
+    ]),
+    AuditLogModule,
+  ],
+  controllers: [AdminController],
+  providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}
