@@ -1,9 +1,11 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../entities/User.entity';
 import { Repository } from 'typeorm';
@@ -104,11 +106,44 @@ export class UsersService {
   async getMe(id: string) {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
-      throw new ConflictException('User not found');
+      throw new NotFoundException('User not found');
     }
 
     const { passwordHash, ...userInfo } = user;
 
     return userInfo;
+  }
+
+  async updateProfile(userId: string, updateUserDto: UpdateUserDto) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (updateUserDto.firstName !== undefined) user.firstName = updateUserDto.firstName.trim();
+    if (updateUserDto.lastName !== undefined) user.lastName = updateUserDto.lastName.trim();
+    if (updateUserDto.phoneNumber !== undefined) user.phoneNumber = updateUserDto.phoneNumber.trim();
+    if (updateUserDto.avatarUrl !== undefined) user.avatarUrl = updateUserDto.avatarUrl.trim();
+    if (updateUserDto.role !== undefined) user.role = updateUserDto.role;
+
+    const saved = await this.userRepository.save(user);
+
+    const payload = {
+      sub: saved.id,
+      email: saved.email,
+      firstName: saved.firstName,
+      lastName: saved.lastName,
+      role: saved.role,
+    };
+
+    const token = await this.jwtService.signAsync(payload);
+    const { passwordHash, ...userInfo } = saved;
+
+    return {
+      token,
+      role: saved.role,
+      user: userInfo,
+      userInfo,
+    };
   }
 }

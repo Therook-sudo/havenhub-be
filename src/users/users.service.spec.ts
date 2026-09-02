@@ -93,4 +93,28 @@ describe('UsersService', () => {
       expect(result.user.email).toBe('landlord@havenhub.com');
     });
   });
+
+  describe('updateProfile', () => {
+    it('updates user role and returns fresh JWT token with updated role', async () => {
+      const existing = {
+        id: 'user-uuid-1',
+        email: 'seeker@havenhub.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        role: Role.PROPERTY_SEEKER,
+        passwordHash: 'hash',
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+
+      const result = await service.updateProfile('user-uuid-1', {
+        role: Role.LANDLORD,
+      });
+
+      expect(result.role).toBe(Role.LANDLORD);
+      expect(result.token).toBe('mock-jwt-token');
+      expect(jwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ role: Role.LANDLORD }),
+      );
+    });
+  });
 });

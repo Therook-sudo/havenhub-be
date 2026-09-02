@@ -9,6 +9,27 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
+export function normalizeRole(raw: any): Role {
+  if (typeof raw !== 'string') return Role.PROPERTY_SEEKER;
+  const upper = raw.trim().toUpperCase();
+  if (upper === 'SEEKER' || upper === 'TENANT' || upper === 'PROPERTY_SEEKER') {
+    return Role.PROPERTY_SEEKER;
+  }
+  if (upper === 'LANDLORD') {
+    return Role.LANDLORD;
+  }
+  if (upper === 'AGENT' || upper === 'REAL_ESTATE_AGENT') {
+    return Role.REAL_ESTATE_AGENT;
+  }
+  if (upper === 'MANAGER' || upper === 'PROPERTY_MANAGER') {
+    return Role.PROPERTY_MANAGER;
+  }
+  if (upper === 'ADMIN') {
+    return Role.ADMIN;
+  }
+  return Role.PROPERTY_SEEKER;
+}
+
 export class RegisterUserDto {
   @ApiProperty({ example: 'test@havenhub.com', description: 'User email address' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
@@ -38,14 +59,12 @@ export class RegisterUserDto {
     enum: Role,
     example: Role.PROPERTY_SEEKER,
     description:
-      'Mandatory user role: PROPERTY_SEEKER, LANDLORD, REAL_ESTATE_AGENT, PROPERTY_MANAGER, ADMIN',
+      'Mandatory user role: PROPERTY_SEEKER (or SEEKER/TENANT), LANDLORD, REAL_ESTATE_AGENT, PROPERTY_MANAGER, ADMIN',
   })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toUpperCase() : value,
-  )
+  @Transform(({ value }) => normalizeRole(value))
   @IsNotEmpty({ message: 'Role is mandatory during registration' })
   @IsEnum(Role, {
     message: `Role is mandatory and must be one of: ${Object.values(Role).join(', ')}`,
   })
-  role!: Role;
+  role: Role = Role.PROPERTY_SEEKER;
 }
