@@ -3,45 +3,47 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
-} from "@nestjs/common";
-import { RegisterUserDto } from "./dto/register-user.dto";
-import { UpdateUserDto } from "./dto/update-user.dto";
-import { InjectRepository } from "@nestjs/typeorm";
-import { User } from "@/entities/User.entity";
-import { Repository } from "typeorm";
-import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcrypt";
-import { LoginUserDto } from "./dto/login-user.dto";
+} from '@nestjs/common';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from '../entities/User.entity';
+import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private UserRepository: Repository<User>,
+    private userRepository: Repository<User>,
     private jwtService: JwtService,
   ) {}
 
   async register(registerUserDto: RegisterUserDto) {
-    const existingUser = await this.UserRepository.findOneBy({
-      email: registerUserDto.email,
+    const normalizedEmail = registerUserDto.email.trim().toLowerCase();
+    const existingUser = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
       throw new ConflictException(
-        `User with Email:${registerUserDto.email} already exists.`,
+        `User with Email: ${registerUserDto.email} already exists.`,
       );
     }
 
     const hashedPassword = await bcrypt.hash(registerUserDto.password, 10);
 
-    const user = this.UserRepository.create({
+    const user = this.userRepository.create({
       ...registerUserDto,
+      email: normalizedEmail,
+      role: registerUserDto.role,
       passwordHash: hashedPassword,
     });
 
-    const saved = await this.UserRepository.save(user);
+    const saved = await this.userRepository.save(user);
 
-    // Sign JWT token upon registration so user can proceed directly to dashboard
+    // Sign JWT token upon registration so user can proceed directly to role dashboard
     const payload = {
       sub: saved.id,
       email: saved.email,
@@ -56,16 +58,19 @@ export class UsersService {
 
     return {
       token,
+      role: saved.role,
+      user: userInfo,
       userInfo,
     };
   }
 
   async login(loginUserDto: LoginUserDto) {
-    const existingUser = await this.UserRepository.findOneBy({
-      email: loginUserDto.email,
+    const normalizedEmail = loginUserDto.email.trim().toLowerCase();
+    const existingUser = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
     });
     if (!existingUser) {
-      throw new ConflictException("Invalid credentials");
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const correctPassword = await bcrypt.compare(
@@ -74,7 +79,7 @@ export class UsersService {
     );
 
     if (!correctPassword) {
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     // Auth enforcement for suspended accounts
@@ -98,18 +103,20 @@ export class UsersService {
 
     return {
       token,
+      role: existingUser.role,
+      user: userInfo,
       userInfo,
     };
   }
 
   async getMe(id: string) {
-    const user = await this.UserRepository.findOneBy({ id });
+    const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new ConflictException('User not found');
     }
 
     const { passwordHash, ...userInfo } = user;
-    
+
     return userInfo;
   }
 }

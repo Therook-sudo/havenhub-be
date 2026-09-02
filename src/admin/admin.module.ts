@@ -1,6 +1,7 @@
 import { Enquiry } from '../entities/Enquiry.entity';
 import { Property } from '../entities/Property.entity';
-import {  User } from '@/entities/User.entity';
+import { User } from '@/entities/User.entity';
+import { AuditLog } from '@/entities/AuditLog.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './admin.controller';
