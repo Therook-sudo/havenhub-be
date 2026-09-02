@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -56,6 +56,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.userRepository.findOneBy({ id: payload.sub });
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
+    }
+
+    // Auth enforcement for suspended accounts
+    if(user.isSuspended) {
+      throw new ForbiddenException(
+        `Your account has been suspended. Reason: ${user.suspensionReason}`,
+      );
     }
     const { passwordHash, ...result } = user;
     return result; // becomes req.user

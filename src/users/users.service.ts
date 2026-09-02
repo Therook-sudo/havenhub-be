@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -74,6 +75,13 @@ export class UsersService {
 
     if (!correctPassword) {
       throw new UnauthorizedException("Invalid credentials");
+    }
+
+    // Auth enforcement for suspended accounts
+    if(existingUser.isSuspended){
+      throw new ForbiddenException(
+        `Your account has been suspended. Reason: ${existingUser.suspensionReason}`,
+      );
     }
 
     const payload = {
