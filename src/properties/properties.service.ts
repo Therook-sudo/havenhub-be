@@ -19,6 +19,7 @@ import { CreatePropertyDto } from "../property/dto/create-property.dto";
 import { UpdatePropertyDto } from "../property/dto/update-property.dto";
 import { Enquiry } from "../entities/Enquiry.entity";
 import { CloudinaryService } from "../cloudinary/cloudinary.service";
+import { AiService } from "../ai/ai.service";
 
 export interface UploadedPropertyFile {
   buffer: Buffer;
@@ -38,6 +39,7 @@ export class PropertiesService {
     @InjectRepository(Enquiry)
     private readonly enquiryRepository: Repository<Enquiry>,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly aiService: AiService,
   ) {}
 
   async findAll(queryDto: QueryPropertyDto) {
@@ -278,6 +280,18 @@ export class PropertiesService {
     }
 
     return property;
+  }
+
+  async getPropertyAiSummary(id: string) {
+    const property = await this.findOne(id);
+    const summary = await this.aiService.summarize(
+      property.description || property.title,
+    );
+    return {
+      propertyId: property.id,
+      title: property.title,
+      ...summary,
+    };
   }
 
   async create(

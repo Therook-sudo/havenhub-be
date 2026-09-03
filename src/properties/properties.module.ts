@@ -6,12 +6,14 @@ import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
 import { Enquiry } from '../entities/Enquiry.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Property, Enquiry]),
     AuthModule,
     CloudinaryModule,
+    AiModule,
   ],
   controllers: [PropertiesController],
   providers: [PropertiesService],

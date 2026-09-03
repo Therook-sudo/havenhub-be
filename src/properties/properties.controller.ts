@@ -263,6 +263,32 @@ export class PropertiesController {
     return this.propertiesService.findOne(id);
   }
 
+  @Get(":id/ai-summary")
+  @ApiOperation({
+    summary: "Get AI Highlights Summary for Property (Mobile / Flutter)",
+    description:
+      "Fetches the property by UUID and generates/returns 3 key AI highlights directly via a single GET request.",
+  })
+  @ApiParam({ name: "id", description: "Unique Property UUID" })
+  @ApiResponse({
+    status: 200,
+    description: "AI highlights summary retrieved successfully",
+  })
+  @ApiResponse({ status: 404, description: "Property not found" })
+  async getAiSummary(@Param("id") id: string) {
+    return this.propertiesService.getPropertyAiSummary(id);
+  }
+
+  @Get(":id/summary")
+  @ApiOperation({
+    summary: "Get AI Highlights Summary for Property (Alias)",
+    description: "Alias for GET /properties/:id/ai-summary",
+  })
+  @ApiParam({ name: "id", description: "Unique Property UUID" })
+  async getAiSummaryAlias(@Param("id") id: string) {
+    return this.propertiesService.getPropertyAiSummary(id);
+  }
+
   @Delete(":id")
   @ApiOperation({
     summary: "Delete Property Listing",
