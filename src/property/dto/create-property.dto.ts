@@ -9,6 +9,7 @@ import {
   Min,
   MinLength,
   IsNotEmpty,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -27,21 +28,20 @@ export class CreatePropertyDto {
   @MaxLength(5000)
   description!: string;
 
-  @ApiProperty({ example: 3500000, description: 'Listing price / rent price (NGN)' })
-  @Transform(({ value, obj }) => {
-    const raw = value !== undefined && value !== null && value !== '' ? value : obj?.rentPrice;
-    return raw !== undefined && raw !== null ? Number(raw) : undefined;
-  })
+  @ApiPropertyOptional({ example: 3500000, description: 'Listing price / rent price (NGN)' })
+  @ValidateIf((o) => o.rentPrice === undefined || o.rentPrice === null)
   @IsNotEmpty({ message: 'Price (or rentPrice) is required' })
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must be a valid number' })
-  @Min(0)
-  price!: number;
+  @Min(0, { message: 'price must not be less than 0' })
+  price?: number;
 
   @ApiPropertyOptional({ example: 3500000, description: 'Frontend alias for price' })
-  @IsOptional()
+  @ValidateIf((o) => o.price === undefined || o.price === null)
+  @IsNotEmpty({ message: 'Price (or rentPrice) is required' })
   @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must be a valid number' })
+  @Min(0, { message: 'price must not be less than 0' })
   rentPrice?: number;
 
   @ApiPropertyOptional({ example: 'NGN', default: 'NGN' })
@@ -151,6 +151,23 @@ export class CreatePropertyDto {
   })
   @IsArray()
   amenities?: string[];
+
+  @ApiPropertyOptional({ type: [String], required: false })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.amenities;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  })
+  @IsArray()
+  'amenities[]'?: string[];
 
   @ApiPropertyOptional({ type: [String], required: false })
   @IsOptional()

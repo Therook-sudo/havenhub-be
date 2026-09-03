@@ -329,7 +329,7 @@ export class PropertiesService {
     const property: Property = this.propertyRepository.create({
       title: createPropertyDto.title,
       description: createPropertyDto.description,
-      price: createPropertyDto.price ?? rentPrice ?? 0,
+      price: createPropertyDto.price ?? createPropertyDto.rentPrice ?? rentPrice ?? 0,
       currency: createPropertyDto.currency || "NGN",
       location:
         createPropertyDto.location ||
@@ -342,7 +342,10 @@ export class PropertiesService {
       propertyType: createPropertyDto.propertyType || "Apartment",
       bedrooms: createPropertyDto.bedrooms ?? 1,
       bathrooms: createPropertyDto.bathrooms ?? 1,
-      amenities: createPropertyDto.amenities || [],
+      amenities:
+        createPropertyDto.amenities ||
+        (createPropertyDto as any)["amenities[]"] ||
+        [],
       images: combinedImages,
       landlordId,
       status,
