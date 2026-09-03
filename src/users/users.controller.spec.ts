@@ -12,6 +12,8 @@ describe('UsersController', () => {
       register: jest.fn(),
       login: jest.fn(),
       updateProfile: jest.fn(),
+      uploadAvatar: jest.fn(),
+      changePassword: jest.fn(),
       getMe: jest.fn(),
     };
 
@@ -45,5 +47,18 @@ describe('UsersController', () => {
     const result = await controller.updateProfile(mockUser, dto);
     expect(usersService.updateProfile).toHaveBeenCalledWith('user-uuid-1', dto);
     expect(result.role).toBe(Role.LANDLORD);
+  });
+
+  it('uploads avatar via POST /users/me/photo', async () => {
+    const mockUser = { id: 'user-uuid-1' } as any;
+    const mockFile = { buffer: Buffer.from('test'), mimetype: 'image/png', originalname: 'avatar.png' };
+    usersService.uploadAvatar.mockResolvedValue({
+      success: true,
+      avatarUrl: 'https://cloudinary.com/avatar.png',
+    });
+
+    const result = await controller.uploadPhoto(mockUser, [mockFile]);
+    expect(usersService.uploadAvatar).toHaveBeenCalledWith('user-uuid-1', mockFile);
+    expect(result.success).toBe(true);
   });
 });

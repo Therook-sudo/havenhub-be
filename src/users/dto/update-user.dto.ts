@@ -17,13 +17,23 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({ example: '+2348123456789' })
   @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.phone;
+    return typeof raw === 'string' ? raw.trim() : raw;
+  })
   @IsString()
   phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: '+2348123456789', description: 'Alias for phoneNumber' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @ApiPropertyOptional({
     enum: Role,
     example: Role.PROPERTY_SEEKER,
-    description: 'Updated user role: PROPERTY_SEEKER (or SEEKER/TENANT), LANDLORD, REAL_ESTATE_AGENT, PROPERTY_MANAGER',
+    description:
+      'Updated user role: PROPERTY_SEEKER (or SEEKER/TENANT), LANDLORD, REAL_ESTATE_AGENT, PROPERTY_MANAGER',
   })
   @IsOptional()
   @Transform(({ value }) => normalizeRole(value))

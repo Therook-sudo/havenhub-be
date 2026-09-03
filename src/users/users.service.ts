@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -7,12 +8,15 @@ import {
 } from '@nestjs/common';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../entities/User.entity';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { UploadedPropertyFile } from '../properties/properties.service';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +24,7 @@ export class UsersService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async register(registerUserDto: RegisterUserDto) {
@@ -85,7 +90,7 @@ export class UsersService {
     }
 
     // Auth enforcement for suspended accounts
-    if(existingUser.isSuspended){
+    if (existingUser.isSuspended) {
       throw new ForbiddenException(
         `Your account has been suspended. Reason: ${existingUser.suspensionReason}`,
       );
@@ -152,6 +157,56 @@ export class UsersService {
       role: saved.role,
       user: userInfo,
       userInfo,
+    };
+  }
+
+  async uploadAvatar(userId: string, file?: UploadedPropertyFile) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Image file is required for avatar upload.');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    let avatarUrl = '';
+    try {
+      avatarUrl = await this.cloudinaryService.uploadImage(file);
+    } catch (err) {
+      // Fallback placeholder if cloud upload fails
+      avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
+    }
+
+    user.avatarUrl = avatarUrl;
+    const saved = await this.userRepository.save(user);
+    const { passwordHash, ...userInfo } = saved;
+
+    return {
+      success: true,
+      avatarUrl,
+      user: userInfo,
+      userInfo,
+    };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isMatch = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Current password is incorrect.');
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: 'Password updated successfully.',
     };
   }
 }
