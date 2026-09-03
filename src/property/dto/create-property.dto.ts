@@ -123,16 +123,29 @@ export class CreatePropertyDto {
   @IsNumber()
   squareFootage?: number;
 
+  @ApiPropertyOptional({ example: 6.5244, required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 3.3792, required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  longitude?: number;
+
   @ApiPropertyOptional({ type: [String], required: false })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value === 'string' && value.trim().length > 0) {
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.['amenities[]'];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
       try {
-        const parsed = JSON.parse(value);
+        const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) return parsed;
       } catch {}
-      return value.split(',').map((s) => s.trim()).filter(Boolean);
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
     }
     return [];
   })
@@ -141,14 +154,15 @@ export class CreatePropertyDto {
 
   @ApiPropertyOptional({ type: [String], required: false })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value === 'string' && value.trim().length > 0) {
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.photos;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
       try {
-        const parsed = JSON.parse(value);
+        const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) return parsed;
       } catch {}
-      return value.split(',').map((s) => s.trim()).filter(Boolean);
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
     }
     return [];
   })

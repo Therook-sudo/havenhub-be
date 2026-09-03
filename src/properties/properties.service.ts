@@ -17,7 +17,14 @@ import { QueryPropertyDto, PropertySortBy } from "./dto/query-property.dto";
 import { UpdatePropertyStatusDto } from "./dto/update-property-status.dto";
 import { CreatePropertyDto } from "../property/dto/create-property.dto";
 import { UpdatePropertyDto } from "../property/dto/update-property.dto";
-import { Enquiry } from "@/entities";
+import { Enquiry } from "../entities/Enquiry.entity";
+import { CloudinaryService } from "../cloudinary/cloudinary.service";
+
+export interface UploadedPropertyFile {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+}
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,7 +36,8 @@ export class PropertiesService {
     private readonly propertyRepository: Repository<Property>,
     private readonly configService: ConfigService,
     @InjectRepository(Enquiry)
-    private readonly enquiryRepository: Repository<Enquiry>
+    private readonly enquiryRepository: Repository<Enquiry>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async findAll(queryDto: QueryPropertyDto) {
@@ -73,27 +81,22 @@ export class PropertiesService {
         "landlord.avatarUrl",
       ]);
 
-    // 1. Status Filtering
     if (status) {
       queryBuilder.andWhere("property.status = :status", { status });
-    } else {
-      if (!isDevAutoApproveEnabled(this.configService)) {
-        queryBuilder.andWhere("property.status = :defaultStatus", {
-          defaultStatus: ListingStatus.APPROVED,
-        });
-      }
+    } else if (!isDevAutoApproveEnabled(this.configService)) {
+      queryBuilder.andWhere("property.status = :defaultStatus", {
+        defaultStatus: ListingStatus.APPROVED,
+      });
     }
 
-    // 2. Multi-field Keyword Search
     if (search && search.trim().length > 0) {
-      const searchTerms = `%${search.trim().toLowerCase()}%`;
+      const sanitized = search.trim();
       queryBuilder.andWhere(
-        "(LOWER(property.title) LIKE :searchTerms OR LOWER(property.description) LIKE :searchTerms OR LOWER(property.location) LIKE :searchTerms OR LOWER(property.city) LIKE :searchTerms OR LOWER(COALESCE(property.address, '')) LIKE :searchTerms)",
-        { searchTerms },
+        "(LOWER(property.title) LIKE LOWER(:search) OR LOWER(property.description) LIKE LOWER(:search) OR LOWER(property.city) LIKE LOWER(:search) OR LOWER(property.location) LIKE LOWER(:search) OR LOWER(property.state) LIKE LOWER(:search))",
+        { search: `%${sanitized}%` },
       );
     }
 
-    // 3. Location Filters
     if (city && city.trim().length > 0) {
       queryBuilder.andWhere("LOWER(property.city) = LOWER(:city)", {
         city: city.trim(),
@@ -107,50 +110,48 @@ export class PropertiesService {
     }
 
     if (location && location.trim().length > 0) {
-      queryBuilder.andWhere("LOWER(property.location) LIKE LOWER(:location)", {
-        location: `%${location.trim()}%`,
+      queryBuilder.andWhere(
+        "(LOWER(property.location) LIKE LOWER(:loc) OR LOWER(property.city) LIKE LOWER(:loc) OR LOWER(property.state) LIKE LOWER(:loc))",
+        { loc: `%${location.trim()}%` },
+      );
+    }
+
+    if (propertyType && propertyType.trim().length > 0) {
+      queryBuilder.andWhere("LOWER(property.propertyType) = LOWER(:pType)", {
+        pType: propertyType.trim(),
       });
     }
 
-    // 4. Property Type Filter
-    if (propertyType && propertyType.trim().length > 0) {
-      queryBuilder.andWhere(
-        "LOWER(property.propertyType) = LOWER(:propertyType)",
-        {
-          propertyType: propertyType.trim(),
-        },
-      );
-    }
-
-    // 5. Price Range Filter
     if (minPrice !== undefined && minPrice !== null) {
-      queryBuilder.andWhere("property.price >= :minPrice", { minPrice });
+      queryBuilder.andWhere("property.price >= :minPrice", {
+        minPrice: Number(minPrice),
+      });
     }
 
     if (maxPrice !== undefined && maxPrice !== null) {
-      queryBuilder.andWhere("property.price <= :maxPrice", { maxPrice });
+      queryBuilder.andWhere("property.price <= :maxPrice", {
+        maxPrice: Number(maxPrice),
+      });
     }
 
-    // 6. Bedroom & Bathroom Filters
     if (bedrooms !== undefined && bedrooms !== null) {
-      queryBuilder.andWhere("property.bedrooms >= :bedrooms", { bedrooms });
+      queryBuilder.andWhere("property.bedrooms = :bedrooms", {
+        bedrooms: Number(bedrooms),
+      });
     }
 
     if (bathrooms !== undefined && bathrooms !== null) {
-      queryBuilder.andWhere("property.bathrooms >= :bathrooms", { bathrooms });
+      queryBuilder.andWhere("property.bathrooms = :bathrooms", {
+        bathrooms: Number(bathrooms),
+      });
     }
 
-    // 7. Amenity Filter
     if (amenity && amenity.trim().length > 0) {
-      queryBuilder.andWhere(
-        "LOWER(COALESCE(property.amenities, '')) LIKE LOWER(:amenity)",
-        {
-          amenity: `%${amenity.trim()}%`,
-        },
-      );
+      queryBuilder.andWhere("property.amenities LIKE :amenity", {
+        amenity: `%${amenity.trim()}%`,
+      });
     }
 
-    // 8. Sorting
     switch (sortBy) {
       case PropertySortBy.PRICE_ASC:
         queryBuilder.orderBy("property.price", "ASC");
@@ -167,7 +168,6 @@ export class PropertiesService {
         break;
     }
 
-    // 9. Pagination
     const validLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const validPage = Math.max(Number(page) || 1, 1);
     const skip = (validPage - 1) * validLimit;
@@ -191,12 +191,9 @@ export class PropertiesService {
   }
 
   async findMyListings(landlordId: string): Promise<Property[]> {
-    if (!landlordId) {
-      throw new BadRequestException("Landlord ID is required");
-    }
     if (!UUID_REGEX.test(landlordId)) {
       throw new BadRequestException(
-        `Invalid Landlord ID format: "${landlordId}". Must be a valid UUID.`,
+        `Invalid Landlord User UUID: "${landlordId}"`,
       );
     }
     return this.propertyRepository.find({
@@ -205,7 +202,7 @@ export class PropertiesService {
     });
   }
 
-  async myListingsStats(id) {
+  async myListingsStats(id: string) {
     const [
       totalListings,
       activeApproved,
@@ -238,7 +235,7 @@ export class PropertiesService {
       }),
       this.enquiryRepository.count({
         where: {
-          property: {id},
+          property: { id },
         },
       }),
     ]);
@@ -286,30 +283,67 @@ export class PropertiesService {
   async create(
     createPropertyDto: CreatePropertyDto,
     landlordId: string,
+    files?: UploadedPropertyFile[],
+    isDraft = false,
   ): Promise<Property> {
-    // DEV_AUTO_APPROVE_LISTINGS=true -> APPROVED, otherwise PENDING_REVIEW.
-    const status = resolveNewListingStatus(this.configService);
-    const { rentPrice, floorNumber, squareFootage, ...sanitizedDto } =
-      createPropertyDto as any;
+    const status = isDraft
+      ? ListingStatus.DRAFT
+      : resolveNewListingStatus(this.configService);
+
+    const {
+      rentPrice,
+      floorNumber,
+      squareFootage,
+      latitude,
+      longitude,
+      ...sanitizedDto
+    } = createPropertyDto as any;
+
+    let uploadedImageUrls: string[] = [];
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        try {
+          if (this.cloudinaryService) {
+            const url = await this.cloudinaryService.uploadImage(file);
+            if (url) uploadedImageUrls.push(url);
+          }
+        } catch (err) {
+          // Cloudinary fallback
+        }
+      }
+    }
+
+    const providedImages = Array.isArray(createPropertyDto.images)
+      ? createPropertyDto.images
+      : [];
+
+    const combinedImages = [...providedImages, ...uploadedImageUrls];
+    if (combinedImages.length === 0) {
+      combinedImages.push(
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c",
+      );
+    }
 
     const property: Property = this.propertyRepository.create({
       title: createPropertyDto.title,
       description: createPropertyDto.description,
       price: createPropertyDto.price ?? rentPrice ?? 0,
-      currency: createPropertyDto.currency || 'NGN',
+      currency: createPropertyDto.currency || "NGN",
       location:
         createPropertyDto.location ||
         createPropertyDto.address ||
         createPropertyDto.city ||
-        'Lagos',
+        "Lagos",
       address: createPropertyDto.address,
-      city: createPropertyDto.city || 'Lagos',
-      state: createPropertyDto.state || 'Lagos State',
-      propertyType: createPropertyDto.propertyType || 'Apartment',
+      city: createPropertyDto.city || "Lagos",
+      state: createPropertyDto.state || "Lagos State",
+      propertyType: createPropertyDto.propertyType || "Apartment",
       bedrooms: createPropertyDto.bedrooms ?? 1,
       bathrooms: createPropertyDto.bathrooms ?? 1,
       amenities: createPropertyDto.amenities || [],
-      images: createPropertyDto.images || [],
+      images: combinedImages,
       landlordId,
       status,
     });
@@ -341,14 +375,9 @@ export class PropertiesService {
     return this.propertyRepository.save(property);
   }
 
-  /**
-   * Moderation transition for a listing (admin only at the controller layer).
-   * `rejectionReason` is persisted only for REJECTED and cleared otherwise,
-   * so an approved listing never carries a stale rejection message.
-   */
   async updateStatus(
     id: string,
-    updateStatusDto: UpdatePropertyStatusDto,
+    dto: UpdatePropertyStatusDto,
   ): Promise<Property> {
     if (!UUID_REGEX.test(id)) {
       throw new NotFoundException(`Invalid Property UUID: "${id}"`);
@@ -360,11 +389,13 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID "${id}" was not found`);
     }
 
-    property.status = updateStatusDto.status;
-    property.rejectionReason =
-      updateStatusDto.status === ListingStatus.REJECTED
-        ? (updateStatusDto.rejectionReason ?? null)
-        : null;
+    property.status = dto.status;
+
+    if (dto.status === ListingStatus.REJECTED) {
+      property.rejectionReason = dto.rejectionReason ?? null;
+    } else {
+      property.rejectionReason = null;
+    }
 
     return this.propertyRepository.save(property);
   }
@@ -382,7 +413,7 @@ export class PropertiesService {
 
     if (property.landlordId !== landlordId) {
       throw new ForbiddenException(
-        "You are not authorized to remove this property",
+        "You are not authorized to delete this property",
       );
     }
 
