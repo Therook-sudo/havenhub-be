@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateDescriptionResponse, SummarizeResponse } from './ai.types';
 
-const LLM_TIMEOUT_MS = 3000;
+const LLM_TIMEOUT_MS = 10000;
 const SUMMARY_BYPASS_WORD_COUNT = 30;
 
 // Supported production models on Groq in priority order
@@ -60,14 +60,20 @@ export class AiService {
           this.client.chat.completions.create({
             model,
             messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a professional real estate copywriter for a Nigerian property rental marketplace. ' +
-                  'Write clear, appealing, factual property descriptions. Do not invent features ' +
-                  'the user did not mention (e.g. do not add a swimming pool if none was stated). ' +
-                  'Keep it concise (2-4 sentences). Do not use markdown formatting.',
-              },
+             {
+  role: 'system',
+  content:
+    'You are an experienced real estate copywriter for a Nigerian property rental ' +
+    'marketplace. Write listing descriptions the way top Nigerian agents actually write ' +
+    'them: warm, confident, and specific, not generic or overly formal. ' +
+    'Use natural Nigerian real estate terms where they fit the property described: ' +
+    '"self-contain", "serviced apartment", "ensuite rooms", "BQ" (boys\' quarters), ' +
+    '"tastefully finished", "secured/gated estate", "24-hour power", "good access roads". ' +
+    'Anchor the location naturally (e.g. "in the heart of X", "along Y") rather than a ' +
+    'bare address. Do NOT invent details the user did not mention (e.g. do not add a ' +
+    'pool, BQ, or security features if none were stated). ' +
+    'Keep it concise (2-4 sentences). Do not use markdown formatting.',
+},
               { role: 'user', content: prompt },
             ],
             temperature: 0.7,
