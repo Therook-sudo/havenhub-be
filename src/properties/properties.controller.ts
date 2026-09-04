@@ -13,6 +13,8 @@ import {
   UseGuards,
   BadRequestException,
   ForbiddenException,
+  UseInterceptors,
+  UploadedFiles,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -21,8 +23,10 @@ import {
   ApiParam,
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
 } from "@nestjs/swagger";
-import { PropertiesService } from "./properties.service";
+import { AnyFilesInterceptor } from "@nestjs/platform-express";
+import { PropertiesService, UploadedPropertyFile } from "./properties.service";
 import { QueryPropertyDto } from "./dto/query-property.dto";
 import { UpdatePropertyStatusDto } from "./dto/update-property-status.dto";
 import { CreatePropertyDto } from "../property/dto/create-property.dto";
@@ -156,11 +160,13 @@ export class PropertiesController {
   }
 
   @Post()
+  @UseInterceptors(AnyFilesInterceptor())
   @ApiOperation({
     summary: "Create New Property Listing",
     description:
-      "Create a new property listing. **Authorized Roles**: `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`. Tenants (`PROPERTY_SEEKER`) are not permitted.",
+      "Create a new property listing. Accepts JSON or multipart/form-data with image uploads under `photos` or `images`. **Authorized Roles**: `LANDLORD`, `REAL_ESTATE_AGENT`, `PROPERTY_MANAGER`, `ADMIN`.",
   })
+  @ApiConsumes("multipart/form-data", "application/json")
   @ApiBearerAuth("JWT-auth")
   @ApiResponse({ status: 201, description: "Property created successfully" })
   @ApiResponse({
@@ -169,11 +175,32 @@ export class PropertiesController {
   })
   async create(
     @Body() createPropertyDto: CreatePropertyDto,
+    @UploadedFiles() files: Array<UploadedPropertyFile>,
     @Req() req: Request,
     @Headers("x-user-id") headerLandlordId?: string,
   ) {
     const landlordId = this.extractUser(req, headerLandlordId, true);
-    return this.propertiesService.create(createPropertyDto, landlordId);
+    return this.propertiesService.create(createPropertyDto, landlordId, files, false);
+  }
+
+  @Post("drafts")
+  @UseInterceptors(AnyFilesInterceptor())
+  @ApiOperation({
+    summary: "Save Property Listing as Draft",
+    description:
+      "Save a property listing as draft. Accepts JSON or multipart/form-data.",
+  })
+  @ApiConsumes("multipart/form-data", "application/json")
+  @ApiBearerAuth("JWT-auth")
+  @ApiResponse({ status: 201, description: "Property draft created successfully" })
+  async createDraft(
+    @Body() createPropertyDto: CreatePropertyDto,
+    @UploadedFiles() files: Array<UploadedPropertyFile>,
+    @Req() req: Request,
+    @Headers("x-user-id") headerLandlordId?: string,
+  ) {
+    const landlordId = this.extractUser(req, headerLandlordId, true);
+    return this.propertiesService.create(createPropertyDto, landlordId, files, true);
   }
 
   @Put(":id")
@@ -202,61 +229,80 @@ export class PropertiesController {
   @ApiOperation({
     summary: "Update Property Listing Status (Admin Moderation)",
     description:
-      "Move a listing through the moderation workflow. **Requires an `ADMIN` Bearer JWT.**\n\n" +
-      "| Status | Effect |\n" +
-      "| --- | --- |\n" +
-      "| `PENDING_REVIEW` | Returns the listing to the moderation queue and hides it from the public feed. |\n" +
-      "| `APPROVED` | Publishes the listing to the public discovery feed. |\n" +
-      "| `REJECTED` | Rejects the listing; the optional `rejectionReason` is stored and shown to the landlord. |\n\n" +
-      "`rejectionReason` is persisted only for `REJECTED` — any previously stored reason is cleared " +
-      "when a listing is approved or sent back for review.\n\n" +
-      "**Related feature flag:** when `DEV_AUTO_APPROVE_LISTINGS=true`, newly created listings are already " +
-      "`APPROVED` and normally do not need this endpoint. With the flag `false` (production default), new " +
-      "listings start as `PENDING_REVIEW` and an admin must approve them here.",
+      "Move a listing through the moderation workflow. **Requires an `ADMIN` Bearer JWT.**",
   })
   @ApiParam({ name: "id", format: "uuid", description: "Unique Property UUID" })
   @ApiBody({ type: UpdatePropertyStatusDto })
   @ApiResponse({
     status: 200,
-    description: "Listing status updated successfully",
-    schema: {
-      example: {
-        id: "3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa",
-        title: "3 Bedroom Serviced Apartment, Lekki Phase 1",
-        status: ListingStatus.REJECTED,
-        rejectionReason: "Listing photos do not match the described property.",
-        landlordId: "a1b2c3d4-e5f6-4711-8899-0a1b2c3d4e5f",
-        updatedAt: "2026-08-21T10:15:30.000Z",
-      },
-    },
+    description: "Property status updated successfully",
   })
-  @ApiResponse({
-    status: 400,
-    description:
-      "Validation failed — `status` must be one of `PENDING_REVIEW`, `APPROVED`, `REJECTED`",
-  })
-  @ApiResponse({ status: 401, description: "Missing or invalid Bearer JWT" })
-  @ApiResponse({
-    status: 403,
-    description: "Authenticated user is not an ADMIN",
-  })
-  @ApiResponse({ status: 404, description: "Property listing not found" })
+  @ApiResponse({ status: 400, description: "Invalid status or request data" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin access only" })
+  @ApiResponse({ status: 404, description: "Property not found" })
   async updateStatus(
     @Param("id") id: string,
-    @Body() updateStatusDto: UpdatePropertyStatusDto,
+    @Body() updatePropertyStatusDto: UpdatePropertyStatusDto,
   ) {
-    return this.propertiesService.updateStatus(id, updateStatusDto);
+    return this.propertiesService.updateStatus(id, updatePropertyStatusDto);
+  }
+
+  @Get(":id")
+  @ApiOperation({
+    summary: "Get Single Property Listing Details",
+    description:
+      "Fetch complete property details by UUID, including amenities, images, and landlord info.",
+  })
+  @ApiParam({ name: "id", description: "Unique Property UUID" })
+  @ApiResponse({
+    status: 200,
+    description: "Property details retrieved successfully",
+  })
+  @ApiResponse({ status: 404, description: "Property not found" })
+  async findOne(@Param("id") id: string) {
+    return this.propertiesService.findOne(id);
+  }
+
+  @Get(":id/ai-summary")
+  @ApiOperation({
+    summary: "Get AI Highlights Summary for Property (Mobile / Flutter)",
+    description:
+      "Fetches the property by UUID and generates/returns 3 key AI highlights directly via a single GET request.",
+  })
+  @ApiParam({ name: "id", description: "Unique Property UUID" })
+  @ApiResponse({
+    status: 200,
+    description: "AI highlights summary retrieved successfully",
+  })
+  @ApiResponse({ status: 404, description: "Property not found" })
+  async getAiSummary(@Param("id") id: string) {
+    return this.propertiesService.getPropertyAiSummary(id);
+  }
+
+  @Get(":id/summary")
+  @ApiOperation({
+    summary: "Get AI Highlights Summary for Property (Alias)",
+    description: "Alias for GET /properties/:id/ai-summary",
+  })
+  @ApiParam({ name: "id", description: "Unique Property UUID" })
+  async getAiSummaryAlias(@Param("id") id: string) {
+    return this.propertiesService.getPropertyAiSummary(id);
   }
 
   @Delete(":id")
   @ApiOperation({
     summary: "Delete Property Listing",
-    description: "Delete a property listing owned by the landlord.",
+    description:
+      "Permanently remove a property listing owned by the landlord.",
   })
   @ApiParam({ name: "id", description: "Unique Property UUID" })
   @ApiBearerAuth("JWT-auth")
   @ApiResponse({ status: 200, description: "Property deleted successfully" })
-  @ApiResponse({ status: 403, description: "Forbidden - Unauthorized user" })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Not authorized to delete this property",
+  })
+  @ApiResponse({ status: 404, description: "Property not found" })
   async remove(
     @Param("id") id: string,
     @Req() req: Request,
@@ -264,19 +310,6 @@ export class PropertiesController {
   ) {
     const landlordId = this.extractUser(req, headerLandlordId, true);
     await this.propertiesService.remove(id, landlordId);
-    return { message: "Property deleted successfully" };
-  }
-
-  @Get(":id")
-  @ApiOperation({
-    summary: "Get Detailed Property View",
-    description:
-      "Fetch full listing details by Property ID including landlord profile.",
-  })
-  @ApiParam({ name: "id", description: "Unique Property UUID" })
-  @ApiResponse({ status: 200, description: "Property detail view" })
-  @ApiResponse({ status: 404, description: "Property listing not found" })
-  async findOne(@Param("id") id: string) {
-    return this.propertiesService.findOne(id);
+    return { message: `Property with ID "${id}" has been deleted successfully.` };
   }
 }

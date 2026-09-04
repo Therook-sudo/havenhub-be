@@ -4,12 +4,14 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../entities/User.entity';
 import { UsersService } from './users.service';
 import { Role } from '../entities/enums';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import * as bcrypt from 'bcrypt';
 
 describe('UsersService', () => {
   let service: UsersService;
   let userRepository: any;
   let jwtService: any;
+  let cloudinaryService: any;
 
   beforeEach(async () => {
     userRepository = {
@@ -25,6 +27,11 @@ describe('UsersService', () => {
       verify: jest.fn(),
     };
 
+    cloudinaryService = {
+      uploadImage: jest.fn().mockResolvedValue('https://res.cloudinary.com/avatar.jpg'),
+      uploadImages: jest.fn().mockResolvedValue(['https://res.cloudinary.com/avatar.jpg']),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -33,6 +40,7 @@ describe('UsersService', () => {
           useValue: userRepository,
         },
         { provide: JwtService, useValue: jwtService },
+        { provide: CloudinaryService, useValue: cloudinaryService },
       ],
     }).compile();
 
@@ -91,6 +99,71 @@ describe('UsersService', () => {
       expect(result.role).toBe(Role.LANDLORD);
       expect(result.token).toBe('mock-jwt-token');
       expect(result.user.email).toBe('landlord@havenhub.com');
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates user role and returns fresh JWT token with updated role', async () => {
+      const existing = {
+        id: 'user-uuid-1',
+        email: 'seeker@havenhub.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        role: Role.PROPERTY_SEEKER,
+        passwordHash: 'hash',
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+
+      const result = await service.updateProfile('user-uuid-1', {
+        role: Role.LANDLORD,
+      });
+
+      expect(result.role).toBe(Role.LANDLORD);
+      expect(result.token).toBe('mock-jwt-token');
+      expect(jwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ role: Role.LANDLORD }),
+      );
+    });
+  });
+
+  describe('uploadAvatar', () => {
+    it('uploads avatar to cloudinary and updates user avatarUrl', async () => {
+      const existing = {
+        id: 'user-uuid-1',
+        email: 'seeker@havenhub.com',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+        passwordHash: 'hash',
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+
+      const mockFile = { buffer: Buffer.from('photo'), mimetype: 'image/png', originalname: 'avatar.png' };
+      const result = await service.uploadAvatar('user-uuid-1', mockFile);
+
+      expect(cloudinaryService.uploadImage).toHaveBeenCalledWith(mockFile);
+      expect(result.success).toBe(true);
+      expect(result.avatarUrl).toBe('https://res.cloudinary.com/avatar.jpg');
+    });
+  });
+
+  describe('changePassword', () => {
+    it('updates user password when current password matches', async () => {
+      const hash = await bcrypt.hash('OldPassword123!', 10);
+      const existing = {
+        id: 'user-uuid-1',
+        email: 'user@havenhub.com',
+        passwordHash: hash,
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+
+      const result = await service.changePassword('user-uuid-1', {
+        currentPassword: 'OldPassword123!',
+        newPassword: 'NewSecurePassword123!',
+      });
+
+      expect(result.success).toBe(true);
+      expect(userRepository.save).toHaveBeenCalled();
     });
   });
 });

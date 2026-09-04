@@ -5,7 +5,9 @@ import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { PropertiesService } from './properties.service';
 import { Property } from '../entities/Property.entity';
-import { Enquiry } from '../entities/Enquiry.entity'
+import { Enquiry } from '../entities/Enquiry.entity';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { AiService } from '../ai/ai.service';
 import { ListingStatus } from '../entities/enums';
 import { DEV_AUTO_APPROVE_LISTINGS_PATH } from '../config/feature-flags';
 import { CreatePropertyDto } from '../property/dto/create-property.dto';
@@ -61,6 +63,33 @@ describe('PropertiesService', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn((key: string) => configValues[key]) },
+        },
+        {
+          provide: CloudinaryService,
+          useValue: {
+            uploadImage: jest
+              .fn()
+              .mockResolvedValue('https://res.cloudinary.com/test/image.jpg'),
+            uploadImages: jest
+              .fn()
+              .mockResolvedValue([
+                'https://res.cloudinary.com/test/image.jpg',
+              ]),
+          },
+        },
+        {
+          provide: AiService,
+          useValue: {
+            summarize: jest.fn().mockResolvedValue({
+              success: true,
+              highlights: ['Highlight 1', 'Highlight 2', 'Highlight 3'],
+              fallback: false,
+            }),
+            generateDescription: jest.fn().mockResolvedValue({
+              success: true,
+              generatedDescription: 'AI generated description',
+            }),
+          },
         },
       ],
     }).compile();

@@ -1,79 +1,188 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsString, IsNumber, IsInt, IsOptional, IsUrl, MaxLength, Min, MinLength, IsEnum, } from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsString,
+  IsNumber,
+  IsInt,
+  IsOptional,
+  MaxLength,
+  Min,
+  MinLength,
+  IsNotEmpty,
+  ValidateIf,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreatePropertyDto {
-    @ApiProperty()
-    @IsString()
-    @MinLength(5)
-    @MaxLength(200)
-    title!: string;
+  @ApiProperty({ example: '3 Bedroom Apartment, Lekki Phase 1', description: 'Listing title' })
+  @IsNotEmpty({ message: 'Title is required' })
+  @IsString()
+  @MinLength(3, { message: 'Title must be at least 3 characters' })
+  @MaxLength(200)
+  title!: string;
 
-    @ApiProperty()
-    @IsString()
-    @MinLength(10)
-    @MaxLength(1000)
-    description!: string;
+  @ApiProperty({ example: 'Modern serviced apartment with 24/7 power...', description: 'Detailed property description' })
+  @IsNotEmpty({ message: 'Description is required' })
+  @IsString()
+  @MinLength(5, { message: 'Description must be at least 5 characters' })
+  @MaxLength(5000)
+  description!: string;
 
-    @ApiProperty()
-    @Type(() => Number)
-    @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
-    price!: number;
+  @ApiPropertyOptional({ example: 3500000, description: 'Listing price / rent price (NGN)' })
+  @ValidateIf((o) => o.rentPrice === undefined || o.rentPrice === null)
+  @IsNotEmpty({ message: 'Price (or rentPrice) is required' })
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must be a valid number' })
+  @Min(0, { message: 'price must not be less than 0' })
+  price?: number;
 
-    @ApiProperty()
-    @IsString()
-    currency!: string;
+  @ApiPropertyOptional({ example: 3500000, description: 'Frontend alias for price' })
+  @ValidateIf((o) => o.price === undefined || o.price === null)
+  @IsNotEmpty({ message: 'Price (or rentPrice) is required' })
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must be a valid number' })
+  @Min(0, { message: 'price must not be less than 0' })
+  rentPrice?: number;
 
-    @ApiProperty()
-    @IsString()
-    @MinLength(2)
-    @MaxLength(200)
-    location!: string;
+  @ApiPropertyOptional({ example: 'NGN', default: 'NGN' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim().toUpperCase() : 'NGN',
+  )
+  @IsString()
+  currency: string = 'NGN';
 
-    @ApiProperty({ required: false })
-    @IsOptional()
-    @IsString()
-    @MinLength(5)
-    @MaxLength(500)
-    address?: string;
+  @ApiPropertyOptional({ example: 'Lekki Phase 1, Lagos', description: 'Neighborhood / Location' })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    return obj?.address || obj?.city || 'Lagos';
+  })
+  @IsString()
+  location: string = 'Lagos';
 
-    @ApiProperty()
-    @IsString()
-    @MinLength(2)
-    city!: string;
+  @ApiPropertyOptional({ example: 'Admiralty Way, Lekki', required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
 
-    @ApiProperty()
-    @IsString()
-    @MinLength(2)
-    state!: string;
+  @ApiPropertyOptional({ example: 'Lagos', default: 'Lagos' })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    return obj?.location || obj?.state || 'Lagos';
+  })
+  @IsString()
+  city: string = 'Lagos';
 
-    @ApiProperty()
-    @IsString()
-    @MinLength(2)
-    propertyType!: string;
+  @ApiPropertyOptional({ example: 'Lagos State', default: 'Lagos State' })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    return obj?.city || 'Lagos State';
+  })
+  @IsString()
+  state: string = 'Lagos State';
 
-    @ApiProperty()
-    @Type(() => Number)
-    @IsInt()
-    @Min(0)
-    bedrooms!: number;
+  @ApiPropertyOptional({ example: 'Apartment', default: 'Apartment' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : 'Apartment',
+  )
+  @IsString()
+  propertyType: string = 'Apartment';
 
-    @ApiProperty()
-    @Type(() => Number)
-    @IsInt()
-    @Min(0)
-    bathrooms!: number;
+  @ApiProperty({ example: 3, description: 'Number of bedrooms' })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') return parseInt(value, 10) || 1;
+    return typeof value === 'number' ? value : 1;
+  })
+  @IsInt({ message: 'Bedrooms must be an integer number' })
+  @Min(0)
+  bedrooms!: number;
 
-    @ApiProperty({ type: [String], required: false })
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    amenities?: string[];
+  @ApiProperty({ example: 2, description: 'Number of bathrooms' })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') return parseInt(value, 10) || 1;
+    return typeof value === 'number' ? value : 1;
+  })
+  @IsInt({ message: 'Bathrooms must be an integer number' })
+  @Min(0)
+  bathrooms!: number;
 
-    @ApiProperty({ type: [String], required: false })
-    @IsOptional()
-    @IsArray()
-    @IsUrl({}, { each: true })
-    images?: string[];
+  @ApiPropertyOptional({ example: 2, description: 'Floor number', required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  floorNumber?: number;
+
+  @ApiPropertyOptional({ example: 150, description: 'Square footage in sqm', required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  squareFootage?: number;
+
+  @ApiPropertyOptional({ example: 6.5244, required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 3.3792, required: false })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  longitude?: number;
+
+  @ApiPropertyOptional({ type: [String], required: false })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.['amenities[]'];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  })
+  @IsArray()
+  amenities?: string[];
+
+  @ApiPropertyOptional({ type: [String], required: false })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.amenities;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  })
+  @IsArray()
+  'amenities[]'?: string[];
+
+  @ApiPropertyOptional({ type: [String], required: false })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined && value !== null ? value : obj?.photos;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  })
+  @IsArray()
+  images?: string[];
 }
