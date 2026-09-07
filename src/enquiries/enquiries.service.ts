@@ -1,15 +1,8 @@
-export interface ThreadSummary {
-  threadId: string;
-  propertyId: string;
-  seekerId: string;
-  lastMessage: Enquiry;
-}
-
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  UnauthorizedException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -20,6 +13,26 @@ import { EnquiryStatus, Role } from "../entities/enums";
 import { CreateEnquiryDto } from "./dto/create-enquiry.dto";
 import { ChangeStatusDto } from "./dto/change-status.dto";
 
+export interface ThreadSummary {
+  id: string;
+  threadId: string;
+  propertyId: string;
+  seekerId: string;
+  propertySubject: string;
+  userName: string;
+  userAvatar: string;
+  lastMessage: string;
+  message: string;
+  timestamp: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isRead: boolean;
+  unreadCount: number;
+  isArchived: boolean;
+  property: Property;
+  seeker?: User;
+}
+
 @Injectable()
 export class EnquiriesService {
   constructor(
@@ -29,34 +42,112 @@ export class EnquiriesService {
     private readonly propertyRepository: Repository<Property>,
   ) {}
 
-  async create(seekerId: string, dto: CreateEnquiryDto): Promise<Enquiry> {
-    const property = await this.propertyRepository.findOne({
-      where: { id: dto.propertyId },
-    });
+  async create(user: User, dto: CreateEnquiryDto): Promise<any> {
+    let propertyId = dto.propertyId;
+    let seekerId: string;
+    let property: Property | null = null;
 
-    if (!property) {
-      throw new NotFoundException("Property not found");
+    if (dto.threadId) {
+      // Landlord or Tenant replying to an existing thread
+      const rootEnquiry = await this.enquiryRepository.findOne({
+        where: { id: dto.threadId },
+        relations: ["property", "seeker"],
+      });
+
+      if (!rootEnquiry) {
+        throw new NotFoundException("Enquiry thread not found");
+      }
+
+      propertyId = rootEnquiry.propertyId;
+      seekerId = rootEnquiry.seekerId;
+      property = rootEnquiry.property;
+
+      const isSeeker = seekerId === user.id;
+      const isLandlord = property?.landlordId === user.id;
+
+      if (!isSeeker && !isLandlord) {
+        throw new ForbiddenException(
+          "You are not authorized to post in this enquiry thread",
+        );
+      }
+    } else {
+      if (!propertyId) {
+        throw new BadRequestException("Either propertyId or threadId is required");
+      }
+
+      property = await this.propertyRepository.findOne({
+        where: { id: propertyId },
+      });
+
+      if (!property) {
+        throw new NotFoundException("Property not found");
+      }
+
+      const isLandlord = property.landlordId === user.id;
+
+      if (isLandlord) {
+        // Landlord is replying to a seeker about their property
+        if (dto.seekerId) {
+          seekerId = dto.seekerId;
+        } else {
+          // Find existing enquiry from tenant on this property
+          const existingEnquiry = await this.enquiryRepository.findOne({
+            where: { propertyId: property.id },
+            order: { createdAt: "DESC" },
+          });
+          if (!existingEnquiry) {
+            throw new BadRequestException(
+              "Cannot reply: No existing enquiry found for this property.",
+            );
+          }
+          seekerId = existingEnquiry.seekerId;
+        }
+      } else {
+        // Tenant initiating/sending an enquiry
+        seekerId = user.id;
+      }
     }
 
+    const isSenderLandlord = property?.landlordId === user.id;
+    const senderRole = isSenderLandlord ? Role.LANDLORD : Role.PROPERTY_SEEKER;
+    const senderType = isSenderLandlord ? "landlord" : "tenant";
+
     const enquiry = this.enquiryRepository.create({
-      ...dto,
+      propertyId,
       seekerId,
+      senderId: user.id,
+      senderRole,
+      message: dto.message,
       status: EnquiryStatus.PENDING,
       isRead: false,
       isArchived: false,
     });
 
-    return this.enquiryRepository.save(enquiry);
+    const saved = await this.enquiryRepository.save(enquiry);
+
+    return {
+      ...saved,
+      text: saved.message,
+      senderId: user.id,
+      senderRole,
+      senderType,
+      sender: {
+        id: user.id,
+        name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || (isSenderLandlord ? "Landlord" : "Tenant"),
+        role: senderRole,
+        avatar: user.avatarUrl || "images/Avatar 4.svg",
+      },
+    };
   }
 
-  async getThreads(user: User) {
+  async getThreads(user: User): Promise<ThreadSummary[]> {
     const isLandlord = user.role === Role.LANDLORD;
 
     const enquiries = await this.enquiryRepository.find({
       where: isLandlord
         ? { property: { landlordId: user.id }, isArchived: false }
         : { seekerId: user.id, isArchived: false },
-      relations: ["property", "seeker"],
+      relations: ["property", "property.landlord", "seeker"],
       order: { createdAt: "DESC" },
     });
 
@@ -67,40 +158,52 @@ export class EnquiriesService {
       const existing = threadMap.get(key);
 
       if (!existing) {
+        const otherParty = isLandlord ? enquiry.seeker : enquiry.property?.landlord;
+        const otherPartyName = otherParty
+          ? `${otherParty.firstName || ""} ${otherParty.lastName || ""}`.trim()
+          : isLandlord
+            ? "Verified Tenant"
+            : "Landlord";
+
         threadMap.set(key, {
+          id: enquiry.id,
           threadId: enquiry.id,
           propertyId: enquiry.propertyId,
           seekerId: enquiry.seekerId,
-          lastMessage: enquiry,
+          propertySubject: enquiry.property?.title || "Property Enquiry",
+          userName: otherPartyName,
+          userAvatar: otherParty?.avatarUrl || "images/Avatar 4.svg",
+          lastMessage: enquiry.message,
+          message: enquiry.message,
+          timestamp: enquiry.createdAt
+            ? new Date(enquiry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "Just now",
+          createdAt: enquiry.createdAt,
+          updatedAt: enquiry.updatedAt,
+          isRead: enquiry.isRead,
+          unreadCount: enquiry.isRead ? 0 : 1,
+          isArchived: enquiry.isArchived,
+          property: enquiry.property,
+          seeker: enquiry.seeker
+            ? ({ ...enquiry.seeker, passwordHash: undefined } as any)
+            : undefined,
         });
-      } else {
-        existing.lastMessage = enquiry;
       }
     }
 
-    return Array.from(threadMap.values())
-      .sort(
-        (a, b) =>
-          b.lastMessage.createdAt.getTime() - a.lastMessage.createdAt.getTime(),
-      )
-      .map((thread) => ({
-        ...thread,
-        lastMessage: {
-          ...thread.lastMessage,
-          seeker: thread.lastMessage.seeker
-            ? ({ ...thread.lastMessage.seeker, passwordHash: undefined } as any)
-            : undefined,
-        },
-      }));
+    return Array.from(threadMap.values()).sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 
   async getThreadMessages(
     user: User,
     threadId: string,
-  ): Promise<Partial<Enquiry>[]> {
+  ): Promise<any[]> {
     const rootEnquiry = await this.enquiryRepository.findOne({
       where: { id: threadId },
-      relations: ["property"],
+      relations: ["property", "property.landlord", "seeker"],
     });
 
     if (!rootEnquiry) {
@@ -108,7 +211,7 @@ export class EnquiriesService {
     }
 
     const isSeeker = rootEnquiry.seekerId === user.id;
-    const isLandlord = rootEnquiry.property.landlordId === user.id;
+    const isLandlord = rootEnquiry.property?.landlordId === user.id;
 
     if (!isSeeker && !isLandlord) {
       throw new ForbiddenException("You do not have access to this thread");
@@ -119,16 +222,50 @@ export class EnquiriesService {
         propertyId: rootEnquiry.propertyId,
         seekerId: rootEnquiry.seekerId,
       },
-      relations: ["seeker"],
+      relations: ["property", "property.landlord", "seeker"],
       order: { createdAt: "ASC" },
     });
 
-    return messages.map((m) => ({
-      ...m,
-      seeker: m.seeker
-        ? ({ ...m.seeker, passwordHash: undefined } as any)
-        : undefined,
-    }));
+    return messages.map((m) => {
+      const isSenderLandlord =
+        m.senderRole === Role.LANDLORD ||
+        (m.senderId && m.senderId === rootEnquiry.property?.landlordId);
+
+      const senderRole = isSenderLandlord ? Role.LANDLORD : Role.PROPERTY_SEEKER;
+      const senderType = isSenderLandlord ? "landlord" : "tenant";
+      const senderUser = isSenderLandlord
+        ? rootEnquiry.property?.landlord
+        : m.seeker;
+
+      return {
+        ...m,
+        text: m.message,
+        senderId:
+          m.senderId ||
+          (isSenderLandlord ? rootEnquiry.property?.landlordId : m.seekerId),
+        senderRole,
+        senderType,
+        sender: senderUser
+          ? {
+              id: senderUser.id,
+              name:
+                `${senderUser.firstName || ""} ${senderUser.lastName || ""}`.trim() ||
+                (isSenderLandlord ? "Landlord" : "Tenant"),
+              role: senderRole,
+              avatar: senderUser.avatarUrl || "images/Avatar 4.svg",
+            }
+          : undefined,
+        seeker: m.seeker
+          ? ({ ...m.seeker, passwordHash: undefined } as any)
+          : undefined,
+        time: m.createdAt
+          ? new Date(m.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "12:00 PM",
+      };
+    });
   }
 
   async markAsRead(id: string, user: User) {
@@ -221,18 +358,18 @@ export class EnquiriesService {
   ): Promise<{ message: string; updatedCount: number }> {
     const rootEnquiry = await this.enquiryRepository.findOne({
       where: { id: threadId },
-      relations: ['property'],
+      relations: ["property"],
     });
 
     if (!rootEnquiry) {
-      throw new NotFoundException('Thread not found');
+      throw new NotFoundException("Thread not found");
     }
 
     const isSeeker = rootEnquiry.seekerId === user.id;
     const isLandlord = rootEnquiry.property.landlordId === user.id;
 
     if (!isSeeker && !isLandlord) {
-      throw new ForbiddenException('You do not have access to this thread');
+      throw new ForbiddenException("You do not have access to this thread");
     }
 
     const result = await this.enquiryRepository.update(
@@ -248,7 +385,7 @@ export class EnquiriesService {
     );
 
     return {
-      message: 'Thread marked as read',
+      message: "Thread marked as read",
       updatedCount: result.affected ?? 0,
     };
   }

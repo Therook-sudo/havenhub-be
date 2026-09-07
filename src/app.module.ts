@@ -53,7 +53,7 @@ import { AuditLogModule } from './audit-log/audit-log.module';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET') || 'havenhub_dev_secret_key_2026',
         signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRES_IN') || '7d',
+          expiresIn: config.get<string>('jwt.expiresIn') || config.get<string>('JWT_EXPIRES_IN') || '30d',
         },
       }),
     }),

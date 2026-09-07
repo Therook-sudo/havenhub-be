@@ -1,18 +1,29 @@
 import {
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
 } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateEnquiryDto {
-  @ApiProperty({example: '12345'})
+  @ApiPropertyOptional({ example: '3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa', description: 'Property UUID' })
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
-  propertyId!: string;
+  propertyId?: string;
 
-  @ApiProperty({example: 'I would love to rent this house'})
+  @ApiPropertyOptional({ example: '3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa', description: 'Thread/Root Enquiry UUID' })
+  @IsOptional()
+  @IsUUID()
+  threadId?: string;
+
+  @ApiPropertyOptional({ example: '3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa', description: 'Tenant/Seeker UUID' })
+  @IsOptional()
+  @IsUUID()
+  seekerId?: string;
+
+  @ApiProperty({ example: 'I would love to rent this house', description: 'Message body' })
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Message body cannot be empty' })
   message!: string;
 }

@@ -29,10 +29,10 @@ export class Enquiry {
   @Column({ type: 'timestamp', nullable: true })
   readAt!: Date | null;
 
-  @Column({default: false})
+  @Column({ default: false })
   isRead!: boolean;
 
-  @Column({default: false})
+  @Column({ default: false })
   isArchived!: boolean;
 
   @Column()
@@ -50,6 +50,12 @@ export class Enquiry {
   @ManyToOne(() => User, (user) => user.enquiriesSent, { onDelete: "CASCADE" })
   @JoinColumn({ name: "seekerId" })
   seeker!: User;
+
+  @Column({ nullable: true })
+  senderId?: string;
+
+  @Column({ nullable: true })
+  senderRole?: string;
 
   @CreateDateColumn()
   createdAt!: Date;

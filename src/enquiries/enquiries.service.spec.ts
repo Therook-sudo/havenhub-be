@@ -14,12 +14,13 @@ const OUTSIDER_ID = 'c3d4e5f6-a7b8-4933-a011-2c3d4e5f6a7b';
 const THREAD_ID = '3f6d1a2e-9c47-4b1d-8a5e-2f0c7b91d4aa';
 const PROPERTY_ID = 'd4e5f6a7-b8c9-4a44-b122-3d4e5f6a7b8c';
 
-const asUser = (id: string, role: Role): User =>
-  ({ id, role }) as User;
+const asUser = (id: string, role: Role, firstName = 'User', lastName = 'Test'): User =>
+  ({ id, role, firstName, lastName } as User);
 
 describe('EnquiriesService', () => {
   let service: EnquiriesService;
   let enquiryRepository: jest.Mocked<Repository<Enquiry>>;
+  let propertyRepository: jest.Mocked<Repository<Property>>;
 
   const buildService = async (): Promise<EnquiriesService> => {
     const module: TestingModule = await Test.createTestingModule({
@@ -47,6 +48,7 @@ describe('EnquiriesService', () => {
 
     const built = module.get<EnquiriesService>(EnquiriesService);
     enquiryRepository = module.get(getRepositoryToken(Enquiry));
+    propertyRepository = module.get(getRepositoryToken(Property));
     return built;
   };
 
@@ -56,6 +58,58 @@ describe('EnquiriesService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('create()', () => {
+    it('creates enquiry for a seeker and assigns seekerId to user.id', async () => {
+      const seeker = asUser(SEEKER_ID, Role.PROPERTY_SEEKER);
+      propertyRepository.findOne.mockResolvedValue({
+        id: PROPERTY_ID,
+        landlordId: LANDLORD_ID,
+      } as Property);
+
+      const result = await service.create(seeker, {
+        propertyId: PROPERTY_ID,
+        message: 'Is this apartment still available?',
+      });
+
+      expect(enquiryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          propertyId: PROPERTY_ID,
+          seekerId: SEEKER_ID,
+          senderId: SEEKER_ID,
+          senderRole: Role.PROPERTY_SEEKER,
+          message: 'Is this apartment still available?',
+        }),
+      );
+      expect(result.senderType).toBe('tenant');
+    });
+
+    it('creates reply for a landlord to an existing thread without corrupting seekerId', async () => {
+      const landlord = asUser(LANDLORD_ID, Role.LANDLORD);
+      enquiryRepository.findOne.mockResolvedValue({
+        id: THREAD_ID,
+        propertyId: PROPERTY_ID,
+        seekerId: SEEKER_ID,
+        property: { id: PROPERTY_ID, landlordId: LANDLORD_ID } as Property,
+      } as Enquiry);
+
+      const result = await service.create(landlord, {
+        threadId: THREAD_ID,
+        message: 'Yes, it is available for inspection tomorrow!',
+      });
+
+      expect(enquiryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          propertyId: PROPERTY_ID,
+          seekerId: SEEKER_ID,
+          senderId: LANDLORD_ID,
+          senderRole: Role.LANDLORD,
+          message: 'Yes, it is available for inspection tomorrow!',
+        }),
+      );
+      expect(result.senderType).toBe('landlord');
+    });
   });
 
   describe('getUnreadCount()', () => {
