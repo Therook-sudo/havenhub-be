@@ -6,16 +6,18 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../entities/User.entity";
 import { EnquiriesService } from "./enquiries.service";
 import { CreateEnquiryDto } from "./dto/create-enquiry.dto";
 import { ChangeStatusDto } from "./dto/change-status.dto";
+import { BatchThreadsDto } from "./dto/batch-threads.dto";
 
 @ApiTags("Enquiries")
 @ApiBearerAuth("JWT-auth")
@@ -78,8 +80,42 @@ export class EnquiriesController {
     return this.enquiriesService.getThreadMessages(user, threadId);
   }
 
+  @Patch("threads/read-all")
+  @ApiOperation({
+    summary: "Mark Multiple or All Conversation Threads as Read (Batch)",
+    description:
+      "Mark a list of thread IDs as read by passing { threadIds: ['...'] } in the body, or omit the body to mark ALL unread threads for the current user as read.",
+  })
+  @ApiBody({ type: BatchThreadsDto, required: false })
+  markThreadsAsRead(
+    @CurrentUser() user: User,
+    @Body() dto?: BatchThreadsDto,
+  ) {
+    return this.enquiriesService.markThreadsAsRead(user, dto);
+  }
+
+  @Patch("read-all")
+  @ApiOperation({ summary: "Mark All User Enquiry Threads as Read (Alias)" })
+  @ApiBody({ type: BatchThreadsDto, required: false })
+  markAllAsReadAlias(
+    @CurrentUser() user: User,
+    @Body() dto?: BatchThreadsDto,
+  ) {
+    return this.enquiriesService.markThreadsAsRead(user, dto);
+  }
+
+  @Patch("threads/:threadId/read-all")
+  @ApiOperation({ summary: "Mark All Messages in a Single Thread as Read" })
+  @ApiParam({ name: "threadId", description: "Enquiry Thread ID" })
+  markSingleThreadAsRead(
+    @CurrentUser() user: User,
+    @Param("threadId") threadId: string,
+  ) {
+    return this.enquiriesService.markThreadAsRead(user, threadId);
+  }
+
   @Patch(":id/read")
-  @ApiOperation({ summary: "Mark Enquiry as Read" })
+  @ApiOperation({ summary: "Mark Single Enquiry Message as Read" })
   markAsRead(@Param("id") id: string, @CurrentUser() user: User) {
     return this.enquiriesService.markAsRead(id, user);
   }
@@ -94,9 +130,53 @@ export class EnquiriesController {
     return this.enquiriesService.changeStatus(id, dto, user);
   }
 
+  @Delete("threads/batch")
+  @ApiOperation({
+    summary: "Archive or Delete Multiple Conversation Threads (Batch)",
+    description:
+      "Archive a list of threads by passing { threadIds: ['...'] }. Set ?permanent=true to permanently delete.",
+  })
+  @ApiBody({ type: BatchThreadsDto })
+  @ApiQuery({ name: "permanent", required: false, type: Boolean })
+  deleteThreadsBatch(
+    @CurrentUser() user: User,
+    @Body() dto: BatchThreadsDto,
+    @Query("permanent") permanent?: string,
+  ) {
+    if (permanent === "true" || permanent === "1") {
+      return this.enquiriesService.deleteThreads(user, dto);
+    }
+    return this.enquiriesService.archiveThreads(user, dto);
+  }
+
+  @Delete("threads/:threadId")
+  @ApiOperation({
+    summary: "Delete Conversation Thread Permanently",
+    description: "Permanently removes the entire enquiry conversation thread for this property/user.",
+  })
+  @ApiParam({ name: "threadId", description: "Enquiry Thread ID" })
+  deleteThread(
+    @CurrentUser() user: User,
+    @Param("threadId") threadId: string,
+  ) {
+    return this.enquiriesService.deleteThread(threadId, user);
+  }
+
   @Delete(":id")
-  @ApiOperation({ summary: "Archive Enquiry Thread" })
-  archiveThread(@Param("id") id: string, @CurrentUser() user: User) {
+  @ApiOperation({
+    summary: "Archive Enquiry Thread",
+    description: "Archive an enquiry thread. Set ?permanent=true to permanently delete.",
+  })
+  @ApiParam({ name: "id", description: "Enquiry ID or Thread ID" })
+  @ApiQuery({ name: "permanent", required: false, type: Boolean })
+  archiveThread(
+    @Param("id") id: string,
+    @CurrentUser() user: User,
+    @Query("permanent") permanent?: string,
+  ) {
+    if (permanent === "true" || permanent === "1") {
+      return this.enquiriesService.deleteThread(id, user);
+    }
     return this.enquiriesService.archiveThread(id, user);
   }
 
@@ -104,14 +184,5 @@ export class EnquiriesController {
   @ApiOperation({ summary: "Get Total Unread Enquiry Count" })
   getUnreadCount(@CurrentUser() user: User) {
     return this.enquiriesService.getUnreadCount(user);
-  }
-
-  @Patch("threads/:threadId/read-all")
-  @ApiOperation({ summary: "Mark All Messages in a Thread as Read" })
-  markThreadAsRead(
-    @CurrentUser() user: User,
-    @Param("threadId") threadId: string,
-  ) {
-    return this.enquiriesService.markThreadAsRead(user, threadId);
   }
 }

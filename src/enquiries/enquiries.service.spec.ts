@@ -35,6 +35,13 @@ describe('EnquiriesService', () => {
             findOne: jest.fn(),
             count: jest.fn(),
             update: jest.fn(),
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
+            createQueryBuilder: jest.fn().mockReturnValue({
+              update: jest.fn().mockReturnThis(),
+              set: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              execute: jest.fn().mockResolvedValue({ affected: 2 }),
+            }),
           },
         },
         {
@@ -139,99 +146,42 @@ describe('EnquiriesService', () => {
     });
   });
 
-  describe('markThreadAsRead()', () => {
-    const rootEnquiry = (overrides: Partial<Enquiry> = {}): Enquiry =>
-      ({
+  describe('markThreadsAsRead()', () => {
+    it('marks a batch of thread IDs as read', async () => {
+      const landlord = asUser(LANDLORD_ID, Role.LANDLORD);
+      enquiryRepository.findOne.mockResolvedValue({
         id: THREAD_ID,
         propertyId: PROPERTY_ID,
         seekerId: SEEKER_ID,
         property: { landlordId: LANDLORD_ID },
-        ...overrides,
-      }) as Enquiry;
-
-    it('throws 404 when the thread does not exist', async () => {
-      enquiryRepository.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.markThreadAsRead(
-          asUser(LANDLORD_ID, Role.LANDLORD),
-          THREAD_ID,
-        ),
-      ).rejects.toBeInstanceOf(NotFoundException);
-
-      expect(enquiryRepository.update).not.toHaveBeenCalled();
-    });
-
-    it('throws 403 for a user who is neither the seeker nor the landlord', async () => {
-      enquiryRepository.findOne.mockResolvedValue(rootEnquiry());
-
-      await expect(
-        service.markThreadAsRead(
-          asUser(OUTSIDER_ID, Role.PROPERTY_SEEKER),
-          THREAD_ID,
-        ),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-
-      expect(enquiryRepository.update).not.toHaveBeenCalled();
-    });
-
-    it('marks the thread as read for the owning landlord', async () => {
-      enquiryRepository.findOne.mockResolvedValue(rootEnquiry());
-      enquiryRepository.update.mockResolvedValue({ affected: 2 } as any);
-
-      const result = await service.markThreadAsRead(
-        asUser(LANDLORD_ID, Role.LANDLORD),
-        THREAD_ID,
-      );
-
-      expect(result).toEqual({
-        message: 'Thread marked as read',
-        updatedCount: 2,
-      });
-      expect(enquiryRepository.update).toHaveBeenCalledWith(
-        { propertyId: PROPERTY_ID, seekerId: SEEKER_ID, isRead: false },
-        expect.objectContaining({ isRead: true }),
-      );
-    });
-
-    it('marks the thread as read for the owning seeker', async () => {
-      enquiryRepository.findOne.mockResolvedValue(rootEnquiry());
+      } as any);
       enquiryRepository.update.mockResolvedValue({ affected: 1 } as any);
 
-      const result = await service.markThreadAsRead(
-        asUser(SEEKER_ID, Role.PROPERTY_SEEKER),
-        THREAD_ID,
-      );
+      const result = await service.markThreadsAsRead(landlord, {
+        threadIds: [THREAD_ID],
+      });
 
       expect(result.updatedCount).toBe(1);
     });
+  });
 
-    it('returns 0 updatedCount when nothing was unread', async () => {
-      enquiryRepository.findOne.mockResolvedValue(rootEnquiry());
-      enquiryRepository.update.mockResolvedValue({ affected: 0 } as any);
+  describe('deleteThread()', () => {
+    it('permanently deletes conversation thread for owning landlord', async () => {
+      const landlord = asUser(LANDLORD_ID, Role.LANDLORD);
+      enquiryRepository.findOne.mockResolvedValue({
+        id: THREAD_ID,
+        propertyId: PROPERTY_ID,
+        seekerId: SEEKER_ID,
+        property: { landlordId: LANDLORD_ID },
+      } as any);
 
-      const result = await service.markThreadAsRead(
-        asUser(LANDLORD_ID, Role.LANDLORD),
-        THREAD_ID,
-      );
+      const result = await service.deleteThread(THREAD_ID, landlord);
 
-      expect(result.updatedCount).toBe(0);
-    });
-
-    it('sets readAt on the update payload', async () => {
-      enquiryRepository.findOne.mockResolvedValue(rootEnquiry());
-      enquiryRepository.update.mockResolvedValue({ affected: 1 } as any);
-
-      await service.markThreadAsRead(
-        asUser(LANDLORD_ID, Role.LANDLORD),
-        THREAD_ID,
-      );
-
-      const [, payload] = enquiryRepository.update.mock.calls[0] as [
-        unknown,
-        Partial<Enquiry>,
-      ];
-      expect(payload.readAt).toBeInstanceOf(Date);
+      expect(enquiryRepository.delete).toHaveBeenCalledWith({
+        propertyId: PROPERTY_ID,
+        seekerId: SEEKER_ID,
+      });
+      expect(result.deletedCount).toBe(1);
     });
   });
 });

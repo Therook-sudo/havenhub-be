@@ -12,6 +12,7 @@ import { User } from "../entities/User.entity";
 import { EnquiryStatus, Role } from "../entities/enums";
 import { CreateEnquiryDto } from "./dto/create-enquiry.dto";
 import { ChangeStatusDto } from "./dto/change-status.dto";
+import { BatchThreadsDto } from "./dto/batch-threads.dto";
 
 export interface ThreadSummary {
   id: string;
@@ -86,11 +87,9 @@ export class EnquiriesService {
       const isLandlord = property.landlordId === user.id;
 
       if (isLandlord) {
-        // Landlord is replying to a seeker about their property
         if (dto.seekerId) {
           seekerId = dto.seekerId;
         } else {
-          // Find existing enquiry from tenant on this property
           const existingEnquiry = await this.enquiryRepository.findOne({
             where: { propertyId: property.id },
             order: { createdAt: "DESC" },
@@ -103,7 +102,6 @@ export class EnquiriesService {
           seekerId = existingEnquiry.seekerId;
         }
       } else {
-        // Tenant initiating/sending an enquiry
         seekerId = user.id;
       }
     }
@@ -285,7 +283,7 @@ export class EnquiriesService {
       throw new ForbiddenException("You don't have access to this thread.");
     }
 
-    await this.enquiryRepository.update({ id }, { isRead: true });
+    await this.enquiryRepository.update({ id }, { isRead: true, readAt: new Date() });
 
     return this.enquiryRepository.findOneBy({ id });
   }
@@ -334,6 +332,106 @@ export class EnquiriesService {
     );
 
     return { message: "Thread archived successfully" };
+  }
+
+  async archiveThreads(user: User, dto?: BatchThreadsDto, threadId?: string) {
+    const targetIds = dto?.threadIds || dto?.ids || (threadId ? [threadId] : []);
+
+    if (targetIds.length === 0) {
+      throw new BadRequestException("Please provide a list of threadIds to archive.");
+    }
+
+    let archivedCount = 0;
+    for (const id of targetIds) {
+      try {
+        const enquiry = await this.enquiryRepository.findOne({
+          where: { id },
+          relations: ["property"],
+        });
+
+        if (enquiry) {
+          const isLandlord = enquiry.property?.landlordId === user.id;
+          const isSeeker = enquiry.seekerId === user.id;
+
+          if (isLandlord || isSeeker) {
+            await this.enquiryRepository.update(
+              { propertyId: enquiry.propertyId, seekerId: enquiry.seekerId },
+              { isArchived: true },
+            );
+            archivedCount++;
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      message: `${archivedCount} thread(s) archived successfully`,
+      archivedCount,
+    };
+  }
+
+  async deleteThread(threadId: string, user: User) {
+    const rootEnquiry = await this.enquiryRepository.findOne({
+      where: { id: threadId },
+      relations: ["property"],
+    });
+
+    if (!rootEnquiry) {
+      throw new NotFoundException("Conversation thread not found");
+    }
+
+    const isSeeker = rootEnquiry.seekerId === user.id;
+    const isLandlord = rootEnquiry.property?.landlordId === user.id;
+
+    if (!isSeeker && !isLandlord) {
+      throw new ForbiddenException("You do not have access to delete this conversation");
+    }
+
+    const result = await this.enquiryRepository.delete({
+      propertyId: rootEnquiry.propertyId,
+      seekerId: rootEnquiry.seekerId,
+    });
+
+    return {
+      message: "Conversation thread deleted permanently",
+      deletedCount: result.affected ?? 0,
+    };
+  }
+
+  async deleteThreads(user: User, dto?: BatchThreadsDto) {
+    const targetIds = dto?.threadIds || dto?.ids || [];
+
+    if (targetIds.length === 0) {
+      throw new BadRequestException("Please provide a list of threadIds to delete.");
+    }
+
+    let deletedCount = 0;
+    for (const id of targetIds) {
+      try {
+        const rootEnquiry = await this.enquiryRepository.findOne({
+          where: { id },
+          relations: ["property"],
+        });
+
+        if (rootEnquiry) {
+          const isSeeker = rootEnquiry.seekerId === user.id;
+          const isLandlord = rootEnquiry.property?.landlordId === user.id;
+
+          if (isSeeker || isLandlord) {
+            const res = await this.enquiryRepository.delete({
+              propertyId: rootEnquiry.propertyId,
+              seekerId: rootEnquiry.seekerId,
+            });
+            deletedCount += res.affected ?? 0;
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      message: "Conversation threads deleted permanently",
+      deletedCount,
+    };
   }
 
   async getUnreadCount(user: User): Promise<{ unreadCount: number }> {
@@ -386,6 +484,53 @@ export class EnquiriesService {
 
     return {
       message: "Thread marked as read",
+      updatedCount: result.affected ?? 0,
+    };
+  }
+
+  async markThreadsAsRead(
+    user: User,
+    dto?: BatchThreadsDto,
+  ): Promise<{ message: string; updatedCount: number }> {
+    const targetIds = dto?.threadIds || dto?.ids;
+
+    if (targetIds && targetIds.length > 0) {
+      let totalUpdated = 0;
+      for (const threadId of targetIds) {
+        try {
+          const res = await this.markThreadAsRead(user, threadId);
+          totalUpdated += res.updatedCount;
+        } catch {}
+      }
+      return {
+        message: "Threads marked as read successfully",
+        updatedCount: totalUpdated,
+      };
+    }
+
+    // Mark ALL unread threads for the current user
+    const isLandlord = user.role === Role.LANDLORD;
+    const unreadEnquiries = await this.enquiryRepository.find({
+      where: isLandlord
+        ? { property: { landlordId: user.id }, isRead: false }
+        : { seekerId: user.id, isRead: false },
+      relations: ["property"],
+    });
+
+    if (unreadEnquiries.length === 0) {
+      return { message: "No unread messages", updatedCount: 0 };
+    }
+
+    const idsToUpdate = unreadEnquiries.map((e) => e.id);
+    const result = await this.enquiryRepository
+      .createQueryBuilder()
+      .update(Enquiry)
+      .set({ isRead: true, readAt: new Date() })
+      .where("id IN (:...ids)", { ids: idsToUpdate })
+      .execute();
+
+    return {
+      message: "All threads marked as read",
       updatedCount: result.affected ?? 0,
     };
   }
