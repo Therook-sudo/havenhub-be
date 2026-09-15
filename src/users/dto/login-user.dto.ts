@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class LoginUserDto {
@@ -13,4 +13,12 @@ export class LoginUserDto {
   @IsNotEmpty({ message: 'Password is required' })
   @IsString()
   password!: string;
+
+  @ApiPropertyOptional({ description: 'Optional user role hint submitted by frontend' })
+  @IsOptional()
+  role?: string;
+
+  @ApiPropertyOptional({ description: 'Optional remember me flag' })
+  @IsOptional()
+  rememberMe?: boolean;
 }
