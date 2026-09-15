@@ -6,6 +6,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { AdminPropertiesController } from './admin-properties.controller';
+import { AdminPropertiesService } from './admin-properties.service';
 import { AuditLogModule } from '@/audit-log/audit-log.module';
 
 @Module({
@@ -17,8 +19,8 @@ import { AuditLogModule } from '@/audit-log/audit-log.module';
     ]),
     AuditLogModule,
   ],
-  controllers: [AdminController],
-  providers: [AdminService],
-  exports: [AdminService],
+  controllers: [AdminController, AdminPropertiesController],
+  providers: [AdminService, AdminPropertiesService],
+  exports: [AdminService, AdminPropertiesService],
 })
 export class AdminModule {}
